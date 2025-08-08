@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   ReactFlow,
   Node,
@@ -13,15 +13,11 @@ import {
   BackgroundVariant,
   NodeTypes,
   EdgeTypes,
+  ReactFlowInstance,
 } from '@xyflow/react';
 import {
   Box,
   Drawer,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
   Typography,
   Fab,
   Dialog,
@@ -34,6 +30,8 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Popover,
+  Grid,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -58,216 +56,16 @@ const edgeTypes: EdgeTypes = {
   custom: CustomEdge as any,
 };
 
-// Initial nodes based on the Burr graph structure
-const initialNodes: Node[] = [
-  {
-    id: 'prompt',
-    type: 'custom',
-    position: { x: 250, y: 50 },
-    data: { 
-      label: 'Prompt',
-      description: 'Initial user input',
-      nodeType: 'start',
-      icon: 'chat'
-    },
-  },
-  {
-    id: 'check_safety',
-    type: 'custom',
-    position: { x: 250, y: 150 },
-    data: { 
-      label: 'Check Safety',
-      description: 'Validate input safety',
-      nodeType: 'process',
-      icon: 'security'
-    },
-  },
-  {
-    id: 'unsafe_response',
-    type: 'custom',
-    position: { x: 50, y: 250 },
-    data: { 
-      label: 'Unsafe Response',
-      description: 'Handle unsafe input',
-      nodeType: 'end',
-      icon: 'warning'
-    },
-  },
-  {
-    id: 'decide_mode',
-    type: 'custom',
-    position: { x: 450, y: 250 },
-    data: { 
-      label: 'Decide Mode',
-      description: 'Determine operation mode',
-      nodeType: 'decision',
-      icon: 'settings'
-    },
-  },
-  {
-    id: 'update_project_name',
-    type: 'custom',
-    position: { x: 200, y: 350 },
-    data: { 
-      label: 'Update Project Name',
-      description: 'Update project information',
-      nodeType: 'process',
-      icon: 'edit'
-    },
-  },
-  {
-    id: 'run_eligibility_check',
-    type: 'custom',
-    position: { x: 400, y: 350 },
-    data: { 
-      label: 'Run Eligibility Check',
-      description: 'Check project eligibility',
-      nodeType: 'process',
-      icon: 'check'
-    },
-  },
-  {
-    id: 'upload_ifc_file',
-    type: 'custom',
-    position: { x: 600, y: 350 },
-    data: { 
-      label: 'Upload IFC File',
-      description: 'Upload building information file',
-      nodeType: 'process',
-      icon: 'upload'
-    },
-  },
-  {
-    id: 'upload_structural_notes',
-    type: 'custom',
-    position: { x: 800, y: 350 },
-    data: { 
-      label: 'Upload Structural Notes',
-      description: 'Upload structural documentation',
-      nodeType: 'process',
-      icon: 'description'
-    },
-  },
-  {
-    id: 'unknown_intent',
-    type: 'custom',
-    position: { x: 700, y: 250 },
-    data: { 
-      label: 'Unknown Intent',
-      description: 'Handle unrecognized input',
-      nodeType: 'end',
-      icon: 'help'
-    },
-  },
-];
+// Initial nodes - start with empty canvas
+const initialNodes: Node[] = [];
 
-// Initial edges based on the Burr graph transitions
-const initialEdges: Edge[] = [
-  {
-    id: 'e1',
-    source: 'prompt',
-    target: 'check_safety',
-    type: 'custom',
-    data: { condition: 'default' },
-  },
-  {
-    id: 'e2',
-    source: 'check_safety',
-    target: 'decide_mode',
-    type: 'custom',
-    data: { condition: 'safe=True' },
-  },
-  {
-    id: 'e3',
-    source: 'check_safety',
-    target: 'unsafe_response',
-    type: 'custom',
-    data: { condition: 'default' },
-  },
-  {
-    id: 'e4',
-    source: 'decide_mode',
-    target: 'update_project_name',
-    type: 'custom',
-    data: { condition: 'mode="update_project_name"' },
-  },
-  {
-    id: 'e5',
-    source: 'decide_mode',
-    target: 'run_eligibility_check',
-    type: 'custom',
-    data: { condition: 'mode="run_eligibility_check"' },
-  },
-  {
-    id: 'e6',
-    source: 'decide_mode',
-    target: 'upload_ifc_file',
-    type: 'custom',
-    data: { condition: 'mode="upload_ifc_file"' },
-  },
-  {
-    id: 'e7',
-    source: 'decide_mode',
-    target: 'upload_structural_notes',
-    type: 'custom',
-    data: { condition: 'mode="upload_structural_notes"' },
-  },
-  {
-    id: 'e8',
-    source: 'decide_mode',
-    target: 'unknown_intent',
-    type: 'custom',
-    data: { condition: 'default' },
-  },
-  // Return edges to prompt
-  {
-    id: 'e9',
-    source: 'update_project_name',
-    target: 'prompt',
-    type: 'custom',
-    data: { condition: 'return' },
-  },
-  {
-    id: 'e10',
-    source: 'run_eligibility_check',
-    target: 'prompt',
-    type: 'custom',
-    data: { condition: 'return' },
-  },
-  {
-    id: 'e11',
-    source: 'upload_ifc_file',
-    target: 'prompt',
-    type: 'custom',
-    data: { condition: 'return' },
-  },
-  {
-    id: 'e12',
-    source: 'upload_structural_notes',
-    target: 'prompt',
-    type: 'custom',
-    data: { condition: 'return' },
-  },
-  {
-    id: 'e13',
-    source: 'unknown_intent',
-    target: 'prompt',
-    type: 'custom',
-    data: { condition: 'return' },
-  },
-  {
-    id: 'e14',
-    source: 'unsafe_response',
-    target: 'prompt',
-    type: 'custom',
-    data: { condition: 'return' },
-  },
-];
+// Initial edges - start with empty canvas
+const initialEdges: Edge[] = [];
 
 // Available node templates
 const nodeTemplates = [
   { type: 'start', label: 'Start Node', icon: <TreeIcon />, color: '#4caf50' },
-  { type: 'process', label: 'Process Node', icon: <SettingsIcon />, color: '#2196f3' },
+  { type: 'process', label: 'Process Node', icon: <SettingsIcon />, color: '#429dbce6' },
   { type: 'decision', label: 'Decision Node', icon: <HelpIcon />, color: '#ff9800' },
   { type: 'end', label: 'End Node', icon: <WarningIcon />, color: '#f44336' },
 ];
@@ -282,13 +80,89 @@ interface NodeDialogData {
 const GraphBuilder: React.FC = () => {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
   const [nodeDialog, setNodeDialog] = useState(false);
+  const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
+  const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  const [colorPickerOpen, setColorPickerOpen] = useState(false);
+  const [colorPickerAnchor, setColorPickerAnchor] = useState<HTMLElement | null>(null);
   const [nodeDialogData, setNodeDialogData] = useState<NodeDialogData>({
     label: '',
     description: '',
     nodeType: 'process',
     icon: 'settings',
   });
+
+  const edgeColors = ['#429dbce6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#6b7280'];
+
+  // Handle node deletion
+  const handleDeleteNode = useCallback((nodeId: string) => {
+    setNodes((nds) => nds.filter((node) => node.id !== nodeId));
+    setEdges((eds) => eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
+    setSelectedNode(null);
+  }, [setNodes, setEdges]);
+
+  // Handle canvas click with Cmd/Ctrl key to create nodes
+  const onPaneClick = useCallback((event: React.MouseEvent) => {
+    if (event.metaKey || event.ctrlKey) {
+      // Cmd/Ctrl + click to create a node
+      let position;
+      
+      if (reactFlowInstance) {
+        // Use ReactFlow's positioning when instance is available
+        position = reactFlowInstance.screenToFlowPosition({
+          x: event.clientX,
+          y: event.clientY,
+        });
+      } else {
+        // Fallback positioning for when ReactFlow instance isn't ready yet
+        const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+        position = {
+          x: event.clientX - rect.left,
+          y: event.clientY - rect.top,
+        };
+      }
+
+      const newNode: Node = {
+        id: `node_${Date.now()}`,
+        type: 'custom',
+        position,
+        data: {
+          label: `Node ${nodes.length + 1}`,
+          description: '',
+          nodeType: 'process',
+          icon: 'settings',
+          colorIndex: nodes.length % 10, // Cycle through the 10 pastel colors
+          onDelete: handleDeleteNode,
+        },
+      };
+
+      setNodes((nds) => [...nds, newNode]);
+    }
+  }, [nodes.length, setNodes, handleDeleteNode, reactFlowInstance]);
+
+  // Handle keyboard events
+  const onKeyDown = useCallback((event: KeyboardEvent) => {
+    if (event.key === 'Backspace' || event.key === 'Delete') {
+      // Delete selected node or edge
+      if (selectedNode) {
+        setNodes((nds) => nds.filter((node) => node.id !== selectedNode));
+        setEdges((eds) => eds.filter((edge) => edge.source !== selectedNode && edge.target !== selectedNode));
+        setSelectedNode(null);
+      } else if (selectedEdge) {
+        setEdges((eds) => eds.filter((edge) => edge.id !== selectedEdge));
+        setSelectedEdge(null);
+      }
+    }
+  }, [selectedNode, selectedEdge, setNodes, setEdges]);
+
+  // Add keyboard event listener
+  useEffect(() => {
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [onKeyDown]);
 
   const onConnect = useCallback(
     (params: Connection) => {
@@ -301,6 +175,36 @@ const GraphBuilder: React.FC = () => {
     },
     [setEdges]
   );
+
+  // Handle node selection
+  const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
+    setSelectedNode(node.id);
+    setSelectedEdge(null);
+  }, []);
+
+  // Handle edge selection
+  const onEdgeClick = useCallback((event: React.MouseEvent, edge: Edge) => {
+    setSelectedEdge(edge.id);
+    setSelectedNode(null);
+    // Open color picker for edge coloring
+    setColorPickerAnchor(event.currentTarget as HTMLElement);
+    setColorPickerOpen(true);
+  }, []);
+
+  // Handle edge color change
+  const handleEdgeColorChange = useCallback((color: string) => {
+    if (selectedEdge) {
+      setEdges((eds) =>
+        eds.map((edge) =>
+          edge.id === selectedEdge
+            ? { ...edge, style: { ...edge.style, stroke: color } }
+            : edge
+        )
+      );
+    }
+    setColorPickerOpen(false);
+    setColorPickerAnchor(null);
+  }, [selectedEdge, setEdges]);
 
   const handleAddNode = useCallback(() => {
     setNodeDialog(true);
@@ -316,6 +220,8 @@ const GraphBuilder: React.FC = () => {
         description: nodeDialogData.description,
         nodeType: nodeDialogData.nodeType,
         icon: nodeDialogData.icon,
+        colorIndex: nodes.length % 10, // Cycle through the 10 pastel colors
+        onDelete: handleDeleteNode,
       },
     };
 
@@ -327,11 +233,11 @@ const GraphBuilder: React.FC = () => {
       nodeType: 'process',
       icon: 'settings',
     });
-  }, [nodeDialogData, setNodes]);
+  }, [nodeDialogData, setNodes, nodes.length, handleDeleteNode]);
 
   return (
     <Box sx={{ display: 'flex', height: '100%' }}>
-      {/* Side drawer with node templates */}
+      {/* Side drawer with instructions */}
       <Drawer
         variant="permanent"
         sx={{
@@ -346,29 +252,61 @@ const GraphBuilder: React.FC = () => {
       >
         <Box sx={{ p: 2 }}>
           <Typography variant="h6" gutterBottom>
-            Node Templates
+            Key Commands
           </Typography>
-          <List>
-            {nodeTemplates.map((template) => (
-              <ListItem key={template.type} disablePadding>
-                <ListItemButton
-                  onClick={() => {
-                    setNodeDialogData({
-                      ...nodeDialogData,
-                      nodeType: template.type,
-                      icon: template.type,
-                    });
-                    setNodeDialog(true);
-                  }}
-                >
-                  <ListItemIcon sx={{ color: template.color }}>
-                    {template.icon}
-                  </ListItemIcon>
-                  <ListItemText primary={template.label} />
-                </ListItemButton>
-              </ListItem>
-            ))}
-          </List>
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" gutterBottom>
+              Create a node
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              ⌘ + click anywhere on the canvas
+            </Typography>
+          </Box>
+          
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" gutterBottom>
+              Create an edge
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              click + drag from the bottom of one node to the top of another
+            </Typography>
+          </Box>
+
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" gutterBottom>
+              Create a conditional edge
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              connect one node to multiple nodes
+            </Typography>
+          </Box>
+
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" gutterBottom>
+              Create a cycle
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              click + drag from the bottom to the top of a node
+            </Typography>
+          </Box>
+
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" gutterBottom>
+              Delete an edge/node
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              click the edge/node and hit the backspace key
+            </Typography>
+          </Box>
+
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" gutterBottom>
+              Color an edge
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              click the edge and select an option from the color picker
+            </Typography>
+          </Box>
         </Box>
       </Drawer>
 
@@ -380,17 +318,22 @@ const GraphBuilder: React.FC = () => {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onNodeClick={onNodeClick}
+          onEdgeClick={onEdgeClick}
+          onPaneClick={onPaneClick}
+          onInit={setReactFlowInstance}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           fitView
           attributionPosition="bottom-left"
+          deleteKeyCode="Backspace"
         >
           <Controls />
           <MiniMap />
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
         </ReactFlow>
 
-        {/* Add Node FAB */}
+        {/* Add Node FAB - Keep for manual addition */}
         <Fab
           color="primary"
           aria-label="add node"
@@ -448,6 +391,50 @@ const GraphBuilder: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Color Picker Popover for Edges */}
+      <Popover
+        open={colorPickerOpen}
+        anchorEl={colorPickerAnchor}
+        onClose={() => {
+          setColorPickerOpen(false);
+          setColorPickerAnchor(null);
+        }}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'center',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'center',
+        }}
+      >
+        <Box sx={{ p: 2 }}>
+          <Typography variant="subtitle2" gutterBottom>
+            Select Edge Color
+          </Typography>
+          <Grid container spacing={1}>
+            {edgeColors.map((color) => (
+              <Grid item key={color}>
+                <Box
+                  sx={{
+                    width: 30,
+                    height: 30,
+                    backgroundColor: color,
+                    borderRadius: 1,
+                    cursor: 'pointer',
+                    border: '2px solid transparent',
+                    '&:hover': {
+                      border: '2px solid #000',
+                    },
+                  }}
+                  onClick={() => handleEdgeColorChange(color)}
+                />
+              </Grid>
+            ))}
+          </Grid>
+        </Box>
+      </Popover>
     </Box>
   );
 };

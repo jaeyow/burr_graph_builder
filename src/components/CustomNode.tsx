@@ -7,75 +7,60 @@ import {
   IconButton,
 } from '@mui/material';
 import {
-  Chat as ChatIcon,
-  Security as SecurityIcon,
-  Warning as WarningIcon,
-  Settings as SettingsIcon,
-  Upload as UploadIcon,
-  Description as DescriptionIcon,
-  Help as HelpIcon,
-  Edit as EditIcon,
-  Check as CheckIcon,
   Delete as DeleteIcon,
 } from '@mui/icons-material';
 
-const iconMap = {
-  chat: ChatIcon,
-  security: SecurityIcon,
-  warning: WarningIcon,
-  settings: SettingsIcon,
-  upload: UploadIcon,
-  description: DescriptionIcon,
-  help: HelpIcon,
-  edit: EditIcon,
-  check: CheckIcon,
-  start: ChatIcon,
-  process: SettingsIcon,
-  decision: HelpIcon,
-  end: WarningIcon,
-} as const;
-
-const nodeTypeColors = {
-  start: '#4caf50',
-  process: '#2196f3',
-  decision: '#ff9800',
-  end: '#f44336',
-} as const;
+// Pastel color palette for nodes
+const pastelColors = [
+  { border: '#FF6B6B', background: '#FFE5E5' }, // Coral
+  { border: '#4ECDC4', background: '#E5F9F6' }, // Turquoise
+  { border: '#45B7D1', background: '#E5F4FD' }, // Sky blue
+  { border: '#96CEB4', background: '#F0F9F4' }, // Mint green
+  { border: '#FFEAA7', background: '#FFFCF0' }, // Light yellow
+  { border: '#DDA0DD', background: '#F5F0F5' }, // Plum
+  { border: '#98D8C8', background: '#F0FAF7' }, // Seafoam
+  { border: '#F7DC6F', background: '#FEFBF0' }, // Pale yellow
+  { border: '#BB8FCE', background: '#F4F1F7' }, // Lavender
+  { border: '#85C1E9', background: '#F0F8FF' }, // Light blue
+];
 
 export interface CustomNodeData extends Record<string, unknown> {
   label: string;
   description?: string;
-  nodeType: keyof typeof nodeTypeColors;
-  icon: keyof typeof iconMap;
+  nodeType: string;
+  icon: string;
+  colorIndex?: number;
   onDelete?: (nodeId: string) => void;
-  onUpdate?: (nodeId: string, data: any) => void;
 }
 
 type CustomNodeType = Node<CustomNodeData>;
 
 const CustomNode: React.FC<NodeProps<CustomNodeType>> = ({ id, data, selected }) => {
-  const IconComponent = iconMap[data.icon] || SettingsIcon;
-  const nodeColor = nodeTypeColors[data.nodeType] || '#2196f3';
+  // Use colorIndex if provided, otherwise generate based on node id
+  const colorIndex = data.colorIndex ?? (parseInt(id.replace(/\D/g, '')) % pastelColors.length);
+  const colors = pastelColors[colorIndex];
 
   const handleDelete = () => {
-    if (data.onDelete) {
+    if (data.onDelete && typeof data.onDelete === 'function') {
       data.onDelete(id);
     }
   };
 
   return (
     <Paper
-      elevation={selected ? 8 : 2}
+      elevation={selected ? 4 : 1}
       sx={{
-        minWidth: 150,
-        maxWidth: 200,
-        border: selected ? `2px solid ${nodeColor}` : 'none',
+        minWidth: 120,
+        maxWidth: 180,
+        border: `2px solid ${colors.border}`,
         borderRadius: 2,
-        backgroundColor: 'white',
+        backgroundColor: colors.background,
         transition: 'all 0.2s ease-in-out',
+        transform: selected ? 'scale(1.05)' : 'scale(1)',
+        position: 'relative',
         '&:hover': {
-          elevation: 4,
-          transform: 'translateY(-1px)',
+          elevation: 3,
+          transform: selected ? 'scale(1.05)' : 'scale(1.02)',
         },
       }}
     >
@@ -84,58 +69,54 @@ const CustomNode: React.FC<NodeProps<CustomNodeType>> = ({ id, data, selected })
         type="target"
         position={Position.Top}
         style={{
-          background: nodeColor,
+          background: colors.border,
           width: 8,
           height: 8,
+          border: 'none',
         }}
       />
 
-      {/* Node Header */}
-      <Box
-        sx={{
-          backgroundColor: nodeColor,
-          color: 'white',
-          p: 1,
-          borderRadius: '8px 8px 0 0',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          <IconComponent sx={{ fontSize: 16 }} />
-          <Typography variant="caption" sx={{ fontWeight: 'bold' }}>
-            {data.nodeType.toUpperCase()}
-          </Typography>
-        </Box>
+      {/* Node Content */}
+      <Box sx={{ p: 1.5, position: 'relative' }}>
+        {/* Delete button - only show when selected */}
         {selected && (
           <IconButton
             size="small"
             onClick={handleDelete}
-            sx={{ color: 'white', p: 0.25 }}
+            sx={{ 
+              position: 'absolute',
+              top: 4,
+              right: 4,
+              color: colors.border,
+              p: 0.25,
+              '&:hover': {
+                backgroundColor: `${colors.border}20`,
+              }
+            }}
           >
             <DeleteIcon sx={{ fontSize: 14 }} />
           </IconButton>
         )}
-      </Box>
 
-      {/* Node Content */}
-      <Box sx={{ p: 1.5 }}>
         <Typography
           variant="body2"
           sx={{
             fontWeight: 'bold',
             mb: data.description ? 0.5 : 0,
             wordWrap: 'break-word',
+            color: colors.border,
+            pr: selected ? 3 : 0, // Add padding when delete button is visible
           }}
         >
           {data.label}
         </Typography>
+        
         {data.description && (
           <Typography
             variant="caption"
             sx={{
-              color: 'text.secondary',
+              color: colors.border,
+              opacity: 0.8,
               display: 'block',
               wordWrap: 'break-word',
             }}
@@ -150,9 +131,10 @@ const CustomNode: React.FC<NodeProps<CustomNodeType>> = ({ id, data, selected })
         type="source"
         position={Position.Bottom}
         style={{
-          background: nodeColor,
+          background: colors.border,
           width: 8,
           height: 8,
+          border: 'none',
         }}
       />
     </Paper>

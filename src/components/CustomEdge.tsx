@@ -26,6 +26,7 @@ const CustomEdge: React.FC<EdgeProps<CustomEdgeType>> = ({
   style = {},
   data,
   markerEnd,
+  selected,
 }) => {
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
@@ -37,8 +38,8 @@ const CustomEdge: React.FC<EdgeProps<CustomEdgeType>> = ({
   });
 
   const edgeStyle = {
-    strokeWidth: 2,
-    stroke: data?.condition === 'default' ? '#94a3b8' : '#3b82f6',
+    strokeWidth: selected ? 4 : 2,
+    stroke: (style as React.CSSProperties)?.stroke || (data?.condition === 'default' ? '#94a3b8' : '#429dbce6'),
     ...(style as React.CSSProperties),
   };
 
