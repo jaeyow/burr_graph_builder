@@ -102,6 +102,17 @@ const GraphBuilder: React.FC = () => {
     setSelectedNode(null);
   }, [setNodes, setEdges]);
 
+  // Handle node label change
+  const handleLabelChange = useCallback((nodeId: string, newLabel: string) => {
+    setNodes((nds) =>
+      nds.map((node) =>
+        node.id === nodeId
+          ? { ...node, data: { ...node.data, label: newLabel } }
+          : node
+      )
+    );
+  }, [setNodes]);
+
   // Handle canvas click with Cmd/Ctrl key to create nodes
   const onPaneClick = useCallback((event: React.MouseEvent) => {
     if (event.metaKey || event.ctrlKey) {
@@ -134,17 +145,22 @@ const GraphBuilder: React.FC = () => {
           icon: 'settings',
           colorIndex: nodes.length % 10, // Cycle through the 10 pastel colors
           onDelete: handleDeleteNode,
+          onLabelChange: handleLabelChange,
         },
       };
 
       setNodes((nds) => [...nds, newNode]);
     }
-  }, [nodes.length, setNodes, handleDeleteNode, reactFlowInstance]);
+  }, [nodes.length, setNodes, handleDeleteNode, handleLabelChange, reactFlowInstance]);
 
   // Handle keyboard events
   const onKeyDown = useCallback((event: KeyboardEvent) => {
-    if (event.key === 'Backspace' || event.key === 'Delete') {
-      // Delete selected node or edge
+    // Don't handle delete keys if user is typing in an input field
+    const target = event.target as HTMLElement;
+    const isInputFocused = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+    
+    if ((event.key === 'Backspace' || event.key === 'Delete') && !isInputFocused) {
+      // Delete selected node or edge only if not editing text
       if (selectedNode) {
         setNodes((nds) => nds.filter((node) => node.id !== selectedNode));
         setEdges((eds) => eds.filter((edge) => edge.source !== selectedNode && edge.target !== selectedNode));
@@ -222,6 +238,7 @@ const GraphBuilder: React.FC = () => {
         icon: nodeDialogData.icon,
         colorIndex: nodes.length % 10, // Cycle through the 10 pastel colors
         onDelete: handleDeleteNode,
+        onLabelChange: handleLabelChange,
       },
     };
 
@@ -233,7 +250,7 @@ const GraphBuilder: React.FC = () => {
       nodeType: 'process',
       icon: 'settings',
     });
-  }, [nodeDialogData, setNodes, nodes.length, handleDeleteNode]);
+  }, [nodeDialogData, setNodes, nodes.length, handleDeleteNode, handleLabelChange]);
 
   return (
     <Box sx={{ display: 'flex', height: '100%' }}>
