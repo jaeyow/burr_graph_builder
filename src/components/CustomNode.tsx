@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useState, useCallback, useRef } from 'react';
 import { Handle, Position, NodeProps, Node } from '@xyflow/react';
 import {
   Paper,
@@ -31,11 +31,18 @@ export interface CustomNodeData extends Record<string, unknown> {
   icon: string;
   colorIndex?: number;
   onDelete?: (nodeId: string) => void;
+  onLabelChange?: (nodeId: string, newLabel: string) => void;
 }
 
 type CustomNodeType = Node<CustomNodeData>;
 
 const CustomNode: React.FC<NodeProps<CustomNodeType>> = ({ id, data, selected }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [labelValue, setLabelValue] = useState(data.label);
+  const [fixedWidth, setFixedWidth] = useState<number | null>(null);
+  const [fixedHeight, setFixedHeight] = useState<number | null>(null);
+  const paperRef = useRef<HTMLDivElement>(null);
+  
   // Use colorIndex if provided, otherwise generate based on node id
   const colorIndex = data.colorIndex ?? (parseInt(id.replace(/\D/g, '')) % pastelColors.length);
   const colors = pastelColors[colorIndex];
@@ -46,18 +53,59 @@ const CustomNode: React.FC<NodeProps<CustomNodeType>> = ({ id, data, selected })
     }
   };
 
+  const handleLabelClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    // Capture current width and height before switching to edit mode
+    if (paperRef.current) {
+      setFixedWidth(paperRef.current.offsetWidth);
+      setFixedHeight(paperRef.current.offsetHeight);
+    }
+    setIsEditing(true);
+  }, []);
+
+  const handleLabelChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    setLabelValue(event.target.value);
+  }, []);
+
+  const handleLabelBlur = useCallback(() => {
+    setIsEditing(false);
+    setFixedWidth(null); // Release the fixed width
+    setFixedHeight(null); // Release the fixed height
+    if (data.onLabelChange && labelValue.trim() !== data.label) {
+      data.onLabelChange(id, labelValue.trim() || data.label);
+    }
+  }, [data, id, labelValue]);
+
+  const handleLabelKeyDown = useCallback((event: React.KeyboardEvent) => {
+    // Stop propagation to prevent global keyboard handlers from interfering
+    event.stopPropagation();
+    
+    if (event.key === 'Enter') {
+      handleLabelBlur();
+    } else if (event.key === 'Escape') {
+      setLabelValue(data.label);
+      setIsEditing(false);
+      setFixedWidth(null); // Release the fixed width
+      setFixedHeight(null); // Release the fixed height
+    }
+  }, [data.label, handleLabelBlur]);
+
   return (
     <Paper
+      ref={paperRef}
       elevation={selected ? 4 : 1}
       sx={{
         minWidth: 120,
         maxWidth: 180,
+        width: fixedWidth ? `${fixedWidth}px` : 'fit-content',
+        height: fixedHeight ? `${fixedHeight}px` : 'auto',
         border: `2px solid ${colors.border}`,
         borderRadius: 2,
         backgroundColor: colors.background,
         transition: 'all 0.2s ease-in-out',
         transform: selected ? 'scale(1.05)' : 'scale(1)',
         position: 'relative',
+        overflow: 'visible', // Allow handles to extend beyond bounds
         '&:hover': {
           elevation: 3,
           transform: selected ? 'scale(1.05)' : 'scale(1.02)',
@@ -69,10 +117,11 @@ const CustomNode: React.FC<NodeProps<CustomNodeType>> = ({ id, data, selected })
         type="target"
         position={Position.Top}
         style={{
-          background: colors.border,
-          width: 8,
-          height: 8,
-          border: 'none',
+          background: 'white',
+          border: `2px solid ${colors.border}`,
+          width: 12,
+          height: 12,
+          // Centered on the top edge, extending beyond bounds
         }}
       />
 
@@ -98,18 +147,52 @@ const CustomNode: React.FC<NodeProps<CustomNodeType>> = ({ id, data, selected })
           </IconButton>
         )}
 
-        <Typography
-          variant="body2"
-          sx={{
-            fontWeight: 'bold',
-            mb: data.description ? 0.5 : 0,
-            wordWrap: 'break-word',
-            color: colors.border,
-            pr: selected ? 3 : 0, // Add padding when delete button is visible
-          }}
-        >
-          {data.label}
-        </Typography>
+        {isEditing ? (
+          <input
+            value={labelValue}
+            onChange={handleLabelChange}
+            onBlur={handleLabelBlur}
+            onKeyDown={handleLabelKeyDown}
+            onClick={(e) => e.stopPropagation()}
+            autoFocus
+            style={{
+              border: 'none',
+              outline: 'none',
+              background: 'transparent',
+              fontSize: '0.875rem',
+              fontWeight: 'bold',
+              color: colors.border,
+              fontFamily: 'inherit',
+              width: '100%',
+              boxSizing: 'border-box',
+              padding: 0,
+              margin: 0,
+              lineHeight: 1.43,
+              marginBottom: data.description ? '8px' : 0, // Match Typography margin exactly (0.5 * 16px = 8px)
+              paddingRight: selected ? '24px' : 0,
+              verticalAlign: 'baseline',
+              display: 'block',
+            }}
+          />
+        ) : (
+          <Typography
+            variant="body2"
+            onClick={handleLabelClick}
+            sx={{
+              fontWeight: 'bold',
+              mb: data.description ? 0.5 : 0,
+              wordWrap: 'break-word',
+              color: colors.border,
+              pr: selected ? 3 : 0, // Add padding when delete button is visible
+              cursor: 'pointer',
+              '&:hover': {
+                opacity: 0.8,
+              },
+            }}
+          >
+            {data.label}
+          </Typography>
+        )}
         
         {data.description && (
           <Typography
@@ -131,10 +214,11 @@ const CustomNode: React.FC<NodeProps<CustomNodeType>> = ({ id, data, selected })
         type="source"
         position={Position.Bottom}
         style={{
-          background: colors.border,
-          width: 8,
-          height: 8,
-          border: 'none',
+          background: 'white',
+          border: `2px solid ${colors.border}`,
+          width: 12,
+          height: 12,
+          // Centered on the bottom edge, extending beyond bounds
         }}
       />
     </Paper>
