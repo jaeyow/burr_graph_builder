@@ -39,11 +39,20 @@ import {
   Settings as SettingsIcon,
   Warning as WarningIcon,
   Help as HelpIcon,
+  Download as DownloadIcon,
+  Code as CodeIcon,
 } from '@mui/icons-material';
 
 import '@xyflow/react/dist/style.css';
 import CustomNode from './CustomNode';
 import CustomEdge from './CustomEdge';
+import ExampleGallery from './ExampleGallery';
+import ConfirmLoadExampleDialog from './ConfirmLoadExampleDialog';
+import { GraphExporter } from '../utils/GraphExporter';
+import { BurrGraphCodeGenerator } from '../utils/BurrCodeGenerator';
+import { ExampleLoader } from '../utils/ExampleLoader';
+import { examples } from '../data/examples';
+import type { ExampleGraph } from '../data/examples';
 
 const drawerWidth = 280;
 
@@ -86,6 +95,8 @@ const GraphBuilder: React.FC = () => {
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const [colorPickerAnchor, setColorPickerAnchor] = useState<HTMLElement | null>(null);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [selectedExample, setSelectedExample] = useState<ExampleGraph | null>(null);
   const [nodeDialogData, setNodeDialogData] = useState<NodeDialogData>({
     label: '',
     description: '',
@@ -346,6 +357,77 @@ const GraphBuilder: React.FC = () => {
     });
   }, [nodeDialogData, setNodes, nodes.length, handleDeleteNode, handleLabelChange]);
 
+  // Export functions
+  const handleExportJSON = useCallback(() => {
+    const graphData = GraphExporter.exportToJSON(nodes, edges);
+    GraphExporter.downloadJSON(graphData);
+  }, [nodes, edges]);
+
+  const handleExportPython = useCallback(() => {
+    const graphData = GraphExporter.exportToJSON(nodes, edges);
+    const pythonCode = BurrGraphCodeGenerator.generatePythonCode(graphData);
+    BurrGraphCodeGenerator.downloadPythonCode(pythonCode);
+  }, [nodes, edges]);
+
+  // Example loading functions
+  const hasExistingContent = nodes.length > 0 || edges.length > 0;
+
+  const handleLoadExample = useCallback((example: ExampleGraph) => {
+    setSelectedExample(example);
+    setConfirmDialogOpen(true);
+  }, []);
+
+  const handleConfirmLoadExample = useCallback(() => {
+    if (!selectedExample) return;
+
+    // Validate example
+    const errors = ExampleLoader.validateExample(selectedExample);
+    if (errors.length > 0) {
+      console.error('Example validation failed:', errors);
+      return;
+    }
+
+    // Convert and load example
+    const { nodes: newNodes, edges: newEdges } = ExampleLoader.convertToReactFlow(selectedExample);
+    
+    // Add handlers to nodes
+    const nodesWithHandlers = newNodes.map(node => ({
+      ...node,
+      data: {
+        ...node.data,
+        onDelete: handleDeleteNode,
+        onLabelChange: handleLabelChange,
+      },
+    }));
+
+    // Add handlers to edges
+    const edgesWithHandlers = newEdges.map(edge => ({
+      ...edge,
+      data: {
+        ...edge.data,
+        onLabelChange: handleEdgeLabelChange,
+        onGroupLabelChange: handleConditionalGroupLabelChange,
+      },
+    }));
+
+    setNodes(nodesWithHandlers);
+    setEdges(edgesWithHandlers);
+    setConfirmDialogOpen(false);
+    setSelectedExample(null);
+
+    // Fit view after a short delay to ensure nodes are rendered
+    setTimeout(() => {
+      if (reactFlowInstance) {
+        reactFlowInstance.fitView({ padding: 0.1 });
+      }
+    }, 100);
+  }, [selectedExample, handleDeleteNode, handleLabelChange, handleEdgeLabelChange, handleConditionalGroupLabelChange, setNodes, setEdges, reactFlowInstance]);
+
+  const handleCancelLoadExample = useCallback(() => {
+    setConfirmDialogOpen(false);
+    setSelectedExample(null);
+  }, []);
+
   return (
     <Box sx={{ display: 'flex', height: '100%' }}>
       {/* Side drawer with instructions */}
@@ -427,6 +509,48 @@ const GraphBuilder: React.FC = () => {
               click the edge and select an option from the color picker
             </Typography>
           </Box>
+
+          {/* Export Section */}
+          <Box sx={{ mt: 4, pt: 2, borderTop: '1px solid #e0e0e0' }}>
+            <Typography variant="h6" gutterBottom>
+              Export Graph
+            </Typography>
+            
+            <Box sx={{ mb: 2 }}>
+              <Button
+                variant="outlined"
+                startIcon={<DownloadIcon />}
+                onClick={handleExportJSON}
+                fullWidth
+                sx={{ mb: 1 }}
+              >
+                Export JSON
+              </Button>
+              <Typography variant="caption" color="text.secondary">
+                Save graph structure as JSON file
+              </Typography>
+            </Box>
+
+            <Box sx={{ mb: 2 }}>
+              <Button
+                variant="contained"
+                startIcon={<CodeIcon />}
+                onClick={handleExportPython}
+                fullWidth
+              >
+                Generate Burr Code
+              </Button>
+              <Typography variant="caption" color="text.secondary">
+                Generate Python boilerplate code
+              </Typography>
+            </Box>
+          </Box>
+
+          {/* Example Gallery */}
+          <ExampleGallery
+            examples={examples}
+            onLoadExample={handleLoadExample}
+          />
         </Box>
       </Drawer>
 
@@ -555,6 +679,15 @@ const GraphBuilder: React.FC = () => {
           </Grid>
         </Box>
       </Popover>
+
+      {/* Confirm Load Example Dialog */}
+      <ConfirmLoadExampleDialog
+        open={confirmDialogOpen}
+        onClose={handleCancelLoadExample}
+        onConfirm={handleConfirmLoadExample}
+        exampleTitle={selectedExample?.title || ''}
+        hasExistingContent={hasExistingContent}
+      />
     </Box>
   );
 };

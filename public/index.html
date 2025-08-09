@@ -12,6 +12,46 @@
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <title>Burr Graph Builder</title>
+    <script>
+      // Debounced ResizeObserver to prevent overwhelming ReactFlow
+      (function() {
+        const originalRO = window.ResizeObserver;
+        if (originalRO) {
+          // Simple debounce function
+          function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+              const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+              };
+              clearTimeout(timeout);
+              timeout = setTimeout(later, wait);
+            };
+          }
+
+          window.ResizeObserver = class extends originalRO {
+            constructor(callback) {
+              // Debounce the callback with a 16ms delay (roughly 60fps)
+              const debouncedCallback = debounce((entries, observer) => {
+                try {
+                  callback(entries, observer);
+                } catch (e) {
+                  if (e.message && e.message.includes('ResizeObserver loop completed')) {
+                    // Still suppress the error as fallback, but debouncing should prevent it
+                    console.warn('ResizeObserver loop detected and handled via debouncing');
+                    return;
+                  }
+                  throw e;
+                }
+              }, 16); // 16ms = ~60fps, prevents overwhelming the system
+
+              super(debouncedCallback);
+            }
+          };
+        }
+      })();
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
