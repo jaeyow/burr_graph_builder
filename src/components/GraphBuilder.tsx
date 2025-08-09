@@ -113,6 +113,28 @@ const GraphBuilder: React.FC = () => {
     );
   }, [setNodes]);
 
+  // Handle edge label change
+  const handleEdgeLabelChange = useCallback((edgeId: string, newLabel: string) => {
+    setEdges((eds) =>
+      eds.map((edge) =>
+        edge.id === edgeId
+          ? { ...edge, data: { ...edge.data, label: newLabel } }
+          : edge
+      )
+    );
+  }, [setEdges]);
+
+  // Handle conditional group label change - updates all edges from the same source
+  const handleConditionalGroupLabelChange = useCallback((sourceNodeId: string, newLabel: string) => {
+    setEdges((eds) =>
+      eds.map((edge) =>
+        edge.source === sourceNodeId && edge.data?.isConditional
+          ? { ...edge, data: { ...edge.data, label: newLabel } }
+          : edge
+      )
+    );
+  }, [setEdges]);
+
   // Handle canvas click with Cmd/Ctrl key to create nodes
   const onPaneClick = useCallback((event: React.MouseEvent) => {
     if (event.metaKey || event.ctrlKey) {
@@ -166,11 +188,41 @@ const GraphBuilder: React.FC = () => {
         setEdges((eds) => eds.filter((edge) => edge.source !== selectedNode && edge.target !== selectedNode));
         setSelectedNode(null);
       } else if (selectedEdge) {
-        setEdges((eds) => eds.filter((edge) => edge.id !== selectedEdge));
+        setEdges((eds) => {
+          const filteredEdges = eds.filter((edge) => edge.id !== selectedEdge);
+          
+          // Find the source of the deleted edge to recalculate conditional status
+          const deletedEdge = eds.find(edge => edge.id === selectedEdge);
+          if (deletedEdge) {
+            const sourceEdges = filteredEdges.filter(edge => edge.source === deletedEdge.source);
+            const shouldBeConditional = sourceEdges.length > 1;
+            
+            // Update remaining edges from same source if needed
+            return filteredEdges.map(edge => {
+              if (edge.source === deletedEdge.source) {
+                // Preserve the group label if still conditional, clear if not
+                const preservedLabel = shouldBeConditional ? (deletedEdge.data?.label || edge.data?.label || 'condition') : undefined;
+                return {
+                  ...edge,
+                  data: {
+                    ...edge.data,
+                    isConditional: shouldBeConditional,
+                    label: preservedLabel,
+                    onLabelChange: handleEdgeLabelChange,
+                    onGroupLabelChange: handleConditionalGroupLabelChange,
+                  }
+                };
+              }
+              return edge;
+            });
+          }
+          
+          return filteredEdges;
+        });
         setSelectedEdge(null);
       }
     }
-  }, [selectedNode, selectedEdge, setNodes, setEdges]);
+  }, [selectedNode, selectedEdge, setNodes, setEdges, handleEdgeLabelChange, handleConditionalGroupLabelChange]);
 
   // Add keyboard event listener
   useEffect(() => {
@@ -182,14 +234,56 @@ const GraphBuilder: React.FC = () => {
 
   const onConnect = useCallback(
     (params: Connection) => {
+      // Check if source node already has outgoing edges
+      const sourceEdges = edges.filter(edge => edge.source === params.source);
+      const isConditional = sourceEdges.length > 0;
+      
+      // Get the existing group label if this is becoming conditional
+      let groupLabel = 'condition';
+      if (isConditional) {
+        const existingConditionalEdge = sourceEdges.find(edge => edge.data?.isConditional);
+        if (existingConditionalEdge?.data?.label && typeof existingConditionalEdge.data.label === 'string') {
+          groupLabel = existingConditionalEdge.data.label;
+        }
+      }
+
       const newEdge = {
         ...params,
         type: 'custom',
-        data: { condition: 'default' },
+        data: { 
+          condition: isConditional ? groupLabel : undefined,
+          isConditional,
+          label: isConditional ? groupLabel : undefined,
+          onLabelChange: handleEdgeLabelChange,
+          onGroupLabelChange: handleConditionalGroupLabelChange,
+        },
       };
-      setEdges((eds) => addEdge(newEdge, eds));
+      
+      // If this makes the source conditional, update existing edges from same source
+      if (isConditional) {
+        setEdges((eds) => {
+          const updatedEdges = eds.map(edge => {
+            if (edge.source === params.source && !edge.data?.isConditional) {
+              return {
+                ...edge,
+                data: {
+                  ...edge.data,
+                  isConditional: true,
+                  label: groupLabel,
+                  onLabelChange: handleEdgeLabelChange,
+                  onGroupLabelChange: handleConditionalGroupLabelChange,
+                }
+              };
+            }
+            return edge;
+          });
+          return addEdge(newEdge, updatedEdges);
+        });
+      } else {
+        setEdges((eds) => addEdge(newEdge, eds));
+      }
     },
-    [setEdges]
+    [setEdges, edges, handleEdgeLabelChange, handleConditionalGroupLabelChange]
   );
 
   // Handle node selection
@@ -294,7 +388,16 @@ const GraphBuilder: React.FC = () => {
               Create a conditional edge
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              connect one node to multiple nodes
+              connect one node to multiple nodes (creates animated dashed lines with shared names)
+            </Typography>
+          </Box>
+
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" gutterBottom>
+              Edit edge labels
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              click on edge label to edit. Conditional edges from same node share names.
             </Typography>
           </Box>
 
