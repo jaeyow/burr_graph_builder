@@ -1,4 +1,4 @@
-import { Node, Edge } from '@xyflow/react';
+import { Node, Edge, MarkerType } from '@xyflow/react';
 import { ExampleGraph } from '../data/examples';
 
 export class ExampleLoader {
@@ -19,12 +19,18 @@ export class ExampleLoader {
       },
     }));
 
-    // Convert edges
+        // Convert edges
     const edges: Edge[] = example.edges.map(edge => ({
       id: edge.id,
       source: edge.source,
       target: edge.target,
       type: 'custom',
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        width: 15,
+        height: 15,
+        color: '#429dbce6',
+      },
       data: {
         condition: edge.condition,
         isConditional: edge.isConditional,

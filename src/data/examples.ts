@@ -6,7 +6,7 @@ export interface ExampleGraph {
   nodes: Array<{
     id: string;
     label: string;
-    nodeType: 'start' | 'process' | 'decision' | 'end';
+    nodeType: 'input' | 'process' ;
     position: { x: number; y: number };
     description?: string;
   }>;
@@ -30,13 +30,13 @@ export const streamingChatbotWorkflow: ExampleGraph = {
     {
       id: 'input_prompt',
       label: 'input: prompt',
-      nodeType: 'start',
+      nodeType: 'input',
       position: { x: 500, y: 50 }
     },
     {
       id: 'input_model',
       label: 'input: model',
-      nodeType: 'start', 
+      nodeType: 'input', 
       position: { x: 100, y: 400 }
     },
     {
@@ -48,13 +48,13 @@ export const streamingChatbotWorkflow: ExampleGraph = {
     {
       id: 'check_safety',
       label: 'check_safety',
-      nodeType: 'decision',
+      nodeType: 'process',
       position: { x: 500, y: 350 }
     },
     {
       id: 'decide_mode',
       label: 'decide_mode',
-      nodeType: 'decision',
+      nodeType: 'process',
       position: { x: 400, y: 500 }
     },
     {
@@ -84,7 +84,7 @@ export const streamingChatbotWorkflow: ExampleGraph = {
     {
       id: 'prompt_for_more',
       label: 'prompt_for_more',
-      nodeType: 'end',
+      nodeType: 'process',
       position: { x: 700, y: 700 }
     }
   ],
@@ -108,9 +108,9 @@ export const streamingChatbotWorkflow: ExampleGraph = {
       isConditional: false
     },
     {
-      id: 'input_model-decide_mode',
+      id: 'input_model-generate_poem',
       source: 'input_model',
-      target: 'decide_mode',
+      target: 'generate_poem',
       isConditional: false
     },
     {

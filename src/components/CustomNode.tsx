@@ -90,6 +90,9 @@ const CustomNode: React.FC<NodeProps<CustomNodeType>> = ({ id, data, selected })
     }
   }, [data.label, handleLabelBlur]);
 
+  // Determine styling based on node type
+  const isInputNode = data.nodeType === 'input';
+
   return (
     <Paper
       ref={paperRef}
@@ -99,9 +102,9 @@ const CustomNode: React.FC<NodeProps<CustomNodeType>> = ({ id, data, selected })
         maxWidth: 180,
         width: fixedWidth ? `${fixedWidth}px` : 'fit-content',
         height: fixedHeight ? `${fixedHeight}px` : 'auto',
-        border: `2px solid ${colors.border}`,
-        borderRadius: 2,
-        backgroundColor: colors.background,
+        border: `2px ${isInputNode ? 'dashed' : 'solid'} ${isInputNode ? '#666' : colors.border}`,
+        borderRadius: 2, // Same rectangle shape for all nodes
+        backgroundColor: isInputNode ? '#fff' : colors.background,
         transition: 'all 0.2s ease-in-out',
         transform: selected ? 'scale(1.05)' : 'scale(1)',
         position: 'relative',
@@ -118,7 +121,7 @@ const CustomNode: React.FC<NodeProps<CustomNodeType>> = ({ id, data, selected })
         position={Position.Top}
         style={{
           background: 'white',
-          border: `2px solid ${colors.border}`,
+          border: `2px solid ${isInputNode ? '#666' : colors.border}`,
           width: 12,
           height: 12,
           // Centered on the top edge, extending beyond bounds
@@ -126,7 +129,19 @@ const CustomNode: React.FC<NodeProps<CustomNodeType>> = ({ id, data, selected })
       />
 
       {/* Node Content */}
-      <Box sx={{ p: 1.5, position: 'relative' }}>
+      <Box sx={{ 
+        p: 1.5, 
+        position: 'relative',
+        // For input nodes, center content in the ellipse
+        ...(isInputNode && {
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100%',
+          textAlign: 'center',
+        })
+      }}>
         {/* Delete button - only show when selected */}
         {selected && (
           <IconButton
@@ -136,10 +151,10 @@ const CustomNode: React.FC<NodeProps<CustomNodeType>> = ({ id, data, selected })
               position: 'absolute',
               top: 4,
               right: 4,
-              color: colors.border,
+              color: isInputNode ? '#666' : colors.border,
               p: 0.25,
               '&:hover': {
-                backgroundColor: `${colors.border}20`,
+                backgroundColor: `${isInputNode ? '#666' : colors.border}20`,
               }
             }}
           >
@@ -161,7 +176,7 @@ const CustomNode: React.FC<NodeProps<CustomNodeType>> = ({ id, data, selected })
               background: 'transparent',
               fontSize: '0.875rem',
               fontWeight: 'bold',
-              color: colors.border,
+              color: isInputNode ? '#666' : colors.border,
               fontFamily: 'inherit',
               width: '100%',
               boxSizing: 'border-box',
@@ -172,6 +187,7 @@ const CustomNode: React.FC<NodeProps<CustomNodeType>> = ({ id, data, selected })
               paddingRight: selected ? '24px' : 0,
               verticalAlign: 'baseline',
               display: 'block',
+              textAlign: isInputNode ? 'center' : 'left',
             }}
           />
         ) : (
@@ -182,9 +198,10 @@ const CustomNode: React.FC<NodeProps<CustomNodeType>> = ({ id, data, selected })
               fontWeight: 'bold',
               mb: data.description ? 0.5 : 0,
               wordWrap: 'break-word',
-              color: colors.border,
+              color: isInputNode ? '#666' : colors.border,
               pr: selected ? 3 : 0, // Add padding when delete button is visible
               cursor: 'pointer',
+              textAlign: isInputNode ? 'center' : 'left',
               '&:hover': {
                 opacity: 0.8,
               },
@@ -198,10 +215,11 @@ const CustomNode: React.FC<NodeProps<CustomNodeType>> = ({ id, data, selected })
           <Typography
             variant="caption"
             sx={{
-              color: colors.border,
+              color: isInputNode ? '#666' : colors.border,
               opacity: 0.8,
               display: 'block',
               wordWrap: 'break-word',
+              textAlign: isInputNode ? 'center' : 'left',
             }}
           >
             {data.description}
@@ -215,7 +233,7 @@ const CustomNode: React.FC<NodeProps<CustomNodeType>> = ({ id, data, selected })
         position={Position.Bottom}
         style={{
           background: 'white',
-          border: `2px solid ${colors.border}`,
+          border: `2px solid ${isInputNode ? '#666' : colors.border}`,
           width: 12,
           height: 12,
           // Centered on the bottom edge, extending beyond bounds

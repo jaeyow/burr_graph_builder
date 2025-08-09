@@ -11,7 +11,7 @@ export interface BurrGraphJSON {
     id: string;
     label: string;
     description?: string;
-    nodeType: 'start' | 'process' | 'decision' | 'end';
+    nodeType: 'input' | 'start' | 'process' | 'decision' | 'end';
     position: { x: number; y: number };
   }>;
   edges: Array<{
@@ -51,8 +51,10 @@ export class GraphExporter {
     return exportData;
   }
 
-  private static mapNodeType(nodeType: string): 'start' | 'process' | 'decision' | 'end' {
+  private static mapNodeType(nodeType: string): 'input' | 'start' | 'process' | 'decision' | 'end' {
     switch (nodeType) {
+      case 'input':
+        return 'input';
       case 'start':
         return 'start';
       case 'decision':

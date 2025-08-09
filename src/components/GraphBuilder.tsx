@@ -14,6 +14,7 @@ import {
   NodeTypes,
   EdgeTypes,
   ReactFlowInstance,
+  MarkerType,
 } from '@xyflow/react';
 import {
   Box,
@@ -55,6 +56,7 @@ import { examples } from '../data/examples';
 import type { ExampleGraph } from '../data/examples';
 
 const drawerWidth = 280;
+const rightDrawerWidth = 300;
 
 // Node types configuration
 const nodeTypes: NodeTypes = {
@@ -63,6 +65,17 @@ const nodeTypes: NodeTypes = {
 
 const edgeTypes: EdgeTypes = {
   custom: CustomEdge as any,
+};
+
+// Default edge options with arrow markers
+const defaultEdgeOptions = {
+  type: 'custom',
+  markerEnd: {
+    type: MarkerType.ArrowClosed,
+    width: 15,
+    height: 15,
+    color: '#429dbce6',
+  },
 };
 
 // Initial nodes - start with empty canvas
@@ -149,7 +162,13 @@ const GraphBuilder: React.FC = () => {
   // Handle canvas click with Cmd/Ctrl key to create nodes
   const onPaneClick = useCallback((event: React.MouseEvent) => {
     if (event.metaKey || event.ctrlKey) {
-      // Cmd/Ctrl + click to create a node
+      // Determine node type based on mouse button
+      const isRightClick = event.button === 2 || event.type === 'contextmenu';
+      const nodeType = isRightClick ? 'input' : 'process';
+      const nodeLabel = isRightClick ? `Input ${nodes.length + 1}` : `Node ${nodes.length + 1}`;
+      
+      // Cmd/Ctrl + click to create a process node
+      // Cmd/Ctrl + right-click to create an input node
       let position;
       
       if (reactFlowInstance) {
@@ -172,9 +191,9 @@ const GraphBuilder: React.FC = () => {
         type: 'custom',
         position,
         data: {
-          label: `Node ${nodes.length + 1}`,
+          label: nodeLabel,
           description: '',
-          nodeType: 'process',
+          nodeType: nodeType,
           icon: 'settings',
           colorIndex: nodes.length % 10, // Cycle through the 10 pastel colors
           onDelete: handleDeleteNode,
@@ -183,8 +202,21 @@ const GraphBuilder: React.FC = () => {
       };
 
       setNodes((nds) => [...nds, newNode]);
+      
+      // Prevent default context menu on right-click
+      if (isRightClick) {
+        event.preventDefault();
+      }
     }
   }, [nodes.length, setNodes, handleDeleteNode, handleLabelChange, reactFlowInstance]);
+
+  // Handle context menu (right-click) for input node creation
+  const onPaneContextMenu = useCallback((event: React.MouseEvent | MouseEvent) => {
+    const reactEvent = event as React.MouseEvent;
+    if (reactEvent.metaKey || reactEvent.ctrlKey) {
+      onPaneClick(reactEvent);
+    }
+  }, [onPaneClick]);
 
   // Handle keyboard events
   const onKeyDown = useCallback((event: KeyboardEvent) => {
@@ -261,6 +293,12 @@ const GraphBuilder: React.FC = () => {
       const newEdge = {
         ...params,
         type: 'custom',
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 15,
+          height: 15,
+          color: '#429dbce6',
+        },
         data: { 
           condition: isConditional ? groupLabel : undefined,
           isConditional,
@@ -277,6 +315,12 @@ const GraphBuilder: React.FC = () => {
             if (edge.source === params.source && !edge.data?.isConditional) {
               return {
                 ...edge,
+                markerEnd: {
+                  type: MarkerType.ArrowClosed,
+                  width: 15,
+                  height: 15,
+                  color: '#429dbce6',
+                },
                 data: {
                   ...edge.data,
                   isConditional: true,
@@ -429,7 +473,7 @@ const GraphBuilder: React.FC = () => {
   }, []);
 
   return (
-    <Box sx={{ display: 'flex', height: '100%' }}>
+    <Box sx={{ display: 'flex', height: '100%', marginRight: `${rightDrawerWidth}px` }}>
       {/* Side drawer with instructions */}
       <Drawer
         variant="permanent"
@@ -449,10 +493,19 @@ const GraphBuilder: React.FC = () => {
           </Typography>
           <Box sx={{ mb: 2 }}>
             <Typography variant="subtitle2" gutterBottom>
-              Create a node
+              Create a process node
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               ⌘ + click anywhere on the canvas
+            </Typography>
+          </Box>
+
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" gutterBottom>
+              Create an input node
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              ⌘ + right-click anywhere on the canvas
             </Typography>
           </Box>
           
@@ -509,9 +562,66 @@ const GraphBuilder: React.FC = () => {
               click the edge and select an option from the color picker
             </Typography>
           </Box>
+        </Box>
+      </Drawer>
 
+      {/* Main ReactFlow area */}
+      <Box sx={{ flex: 1, position: 'relative' }}>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onNodeClick={onNodeClick}
+          onEdgeClick={onEdgeClick}
+          onPaneClick={onPaneClick}
+          onPaneContextMenu={onPaneContextMenu}
+          onInit={setReactFlowInstance}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          defaultEdgeOptions={defaultEdgeOptions}
+          fitView
+          attributionPosition="bottom-left"
+          deleteKeyCode="Backspace"
+        >
+          <Controls />
+          <MiniMap />
+          <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
+        </ReactFlow>
+
+        {/* Add Node FAB - Keep for manual addition */}
+        <Fab
+          color="primary"
+          aria-label="add node"
+          sx={{ position: 'absolute', bottom: 16, right: 16 }}
+          onClick={handleAddNode}
+        >
+          <AddIcon />
+        </Fab>
+      </Box>
+
+      {/* Right Sidebar */}
+      <Drawer
+        variant="permanent"
+        anchor="right"
+        sx={{
+          width: rightDrawerWidth,
+          flexShrink: 0,
+          position: 'fixed',
+          '& .MuiDrawer-paper': {
+            width: rightDrawerWidth,
+            boxSizing: 'border-box',
+            top: 0,
+            height: '100vh',
+            position: 'fixed',
+            right: 0,
+          },
+        }}
+      >
+        <Box sx={{ p: 2, overflow: 'auto' }}>
           {/* Export Section */}
-          <Box sx={{ mt: 4, pt: 2, borderTop: '1px solid #e0e0e0' }}>
+          <Box sx={{ mb: 4 }}>
             <Typography variant="h6" gutterBottom>
               Export Graph
             </Typography>
@@ -553,40 +663,6 @@ const GraphBuilder: React.FC = () => {
           />
         </Box>
       </Drawer>
-
-      {/* Main ReactFlow area */}
-      <Box sx={{ flex: 1, position: 'relative' }}>
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onNodeClick={onNodeClick}
-          onEdgeClick={onEdgeClick}
-          onPaneClick={onPaneClick}
-          onInit={setReactFlowInstance}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          fitView
-          attributionPosition="bottom-left"
-          deleteKeyCode="Backspace"
-        >
-          <Controls />
-          <MiniMap />
-          <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
-        </ReactFlow>
-
-        {/* Add Node FAB - Keep for manual addition */}
-        <Fab
-          color="primary"
-          aria-label="add node"
-          sx={{ position: 'absolute', bottom: 16, right: 16 }}
-          onClick={handleAddNode}
-        >
-          <AddIcon />
-        </Fab>
-      </Box>
 
       {/* Add Node Dialog */}
       <Dialog open={nodeDialog} onClose={() => setNodeDialog(false)} maxWidth="sm" fullWidth>
