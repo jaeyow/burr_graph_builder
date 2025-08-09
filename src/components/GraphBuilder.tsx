@@ -14,6 +14,7 @@ import {
   NodeTypes,
   EdgeTypes,
   ReactFlowInstance,
+  MarkerType,
 } from '@xyflow/react';
 import {
   Box,
@@ -39,13 +40,23 @@ import {
   Settings as SettingsIcon,
   Warning as WarningIcon,
   Help as HelpIcon,
+  Download as DownloadIcon,
+  Code as CodeIcon,
 } from '@mui/icons-material';
 
 import '@xyflow/react/dist/style.css';
 import CustomNode from './CustomNode';
 import CustomEdge from './CustomEdge';
+import ExampleGallery from './ExampleGallery';
+import ConfirmLoadExampleDialog from './ConfirmLoadExampleDialog';
+import { GraphExporter } from '../utils/GraphExporter';
+import { BurrGraphCodeGenerator } from '../utils/BurrCodeGenerator';
+import { ExampleLoader } from '../utils/ExampleLoader';
+import { examples } from '../data/examples';
+import type { ExampleGraph } from '../data/examples';
 
 const drawerWidth = 280;
+const rightDrawerWidth = 300;
 
 // Node types configuration
 const nodeTypes: NodeTypes = {
@@ -54,6 +65,17 @@ const nodeTypes: NodeTypes = {
 
 const edgeTypes: EdgeTypes = {
   custom: CustomEdge as any,
+};
+
+// Default edge options with arrow markers
+const defaultEdgeOptions = {
+  type: 'custom',
+  markerEnd: {
+    type: MarkerType.ArrowClosed,
+    width: 15,
+    height: 15,
+    color: '#429dbce6',
+  },
 };
 
 // Initial nodes - start with empty canvas
@@ -86,6 +108,8 @@ const GraphBuilder: React.FC = () => {
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const [colorPickerAnchor, setColorPickerAnchor] = useState<HTMLElement | null>(null);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [selectedExample, setSelectedExample] = useState<ExampleGraph | null>(null);
   const [nodeDialogData, setNodeDialogData] = useState<NodeDialogData>({
     label: '',
     description: '',
@@ -138,7 +162,13 @@ const GraphBuilder: React.FC = () => {
   // Handle canvas click with Cmd/Ctrl key to create nodes
   const onPaneClick = useCallback((event: React.MouseEvent) => {
     if (event.metaKey || event.ctrlKey) {
-      // Cmd/Ctrl + click to create a node
+      // Determine node type based on mouse button
+      const isRightClick = event.button === 2 || event.type === 'contextmenu';
+      const nodeType = isRightClick ? 'input' : 'process';
+      const nodeLabel = isRightClick ? `Input ${nodes.length + 1}` : `Node ${nodes.length + 1}`;
+      
+      // Cmd/Ctrl + click to create a process node
+      // Cmd/Ctrl + right-click to create an input node
       let position;
       
       if (reactFlowInstance) {
@@ -161,9 +191,9 @@ const GraphBuilder: React.FC = () => {
         type: 'custom',
         position,
         data: {
-          label: `Node ${nodes.length + 1}`,
+          label: nodeLabel,
           description: '',
-          nodeType: 'process',
+          nodeType: nodeType,
           icon: 'settings',
           colorIndex: nodes.length % 10, // Cycle through the 10 pastel colors
           onDelete: handleDeleteNode,
@@ -172,8 +202,21 @@ const GraphBuilder: React.FC = () => {
       };
 
       setNodes((nds) => [...nds, newNode]);
+      
+      // Prevent default context menu on right-click
+      if (isRightClick) {
+        event.preventDefault();
+      }
     }
   }, [nodes.length, setNodes, handleDeleteNode, handleLabelChange, reactFlowInstance]);
+
+  // Handle context menu (right-click) for input node creation
+  const onPaneContextMenu = useCallback((event: React.MouseEvent | MouseEvent) => {
+    const reactEvent = event as React.MouseEvent;
+    if (reactEvent.metaKey || reactEvent.ctrlKey) {
+      onPaneClick(reactEvent);
+    }
+  }, [onPaneClick]);
 
   // Handle keyboard events
   const onKeyDown = useCallback((event: KeyboardEvent) => {
@@ -250,6 +293,12 @@ const GraphBuilder: React.FC = () => {
       const newEdge = {
         ...params,
         type: 'custom',
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 15,
+          height: 15,
+          color: '#429dbce6',
+        },
         data: { 
           condition: isConditional ? groupLabel : undefined,
           isConditional,
@@ -266,6 +315,12 @@ const GraphBuilder: React.FC = () => {
             if (edge.source === params.source && !edge.data?.isConditional) {
               return {
                 ...edge,
+                markerEnd: {
+                  type: MarkerType.ArrowClosed,
+                  width: 15,
+                  height: 15,
+                  color: '#429dbce6',
+                },
                 data: {
                   ...edge.data,
                   isConditional: true,
@@ -346,8 +401,79 @@ const GraphBuilder: React.FC = () => {
     });
   }, [nodeDialogData, setNodes, nodes.length, handleDeleteNode, handleLabelChange]);
 
+  // Export functions
+  const handleExportJSON = useCallback(() => {
+    const graphData = GraphExporter.exportToJSON(nodes, edges);
+    GraphExporter.downloadJSON(graphData);
+  }, [nodes, edges]);
+
+  const handleExportPython = useCallback(() => {
+    const graphData = GraphExporter.exportToJSON(nodes, edges);
+    const pythonCode = BurrGraphCodeGenerator.generatePythonCode(graphData);
+    BurrGraphCodeGenerator.downloadPythonCode(pythonCode);
+  }, [nodes, edges]);
+
+  // Example loading functions
+  const hasExistingContent = nodes.length > 0 || edges.length > 0;
+
+  const handleLoadExample = useCallback((example: ExampleGraph) => {
+    setSelectedExample(example);
+    setConfirmDialogOpen(true);
+  }, []);
+
+  const handleConfirmLoadExample = useCallback(() => {
+    if (!selectedExample) return;
+
+    // Validate example
+    const errors = ExampleLoader.validateExample(selectedExample);
+    if (errors.length > 0) {
+      console.error('Example validation failed:', errors);
+      return;
+    }
+
+    // Convert and load example
+    const { nodes: newNodes, edges: newEdges } = ExampleLoader.convertToReactFlow(selectedExample);
+    
+    // Add handlers to nodes
+    const nodesWithHandlers = newNodes.map(node => ({
+      ...node,
+      data: {
+        ...node.data,
+        onDelete: handleDeleteNode,
+        onLabelChange: handleLabelChange,
+      },
+    }));
+
+    // Add handlers to edges
+    const edgesWithHandlers = newEdges.map(edge => ({
+      ...edge,
+      data: {
+        ...edge.data,
+        onLabelChange: handleEdgeLabelChange,
+        onGroupLabelChange: handleConditionalGroupLabelChange,
+      },
+    }));
+
+    setNodes(nodesWithHandlers);
+    setEdges(edgesWithHandlers);
+    setConfirmDialogOpen(false);
+    setSelectedExample(null);
+
+    // Fit view after a short delay to ensure nodes are rendered
+    setTimeout(() => {
+      if (reactFlowInstance) {
+        reactFlowInstance.fitView({ padding: 0.1 });
+      }
+    }, 100);
+  }, [selectedExample, handleDeleteNode, handleLabelChange, handleEdgeLabelChange, handleConditionalGroupLabelChange, setNodes, setEdges, reactFlowInstance]);
+
+  const handleCancelLoadExample = useCallback(() => {
+    setConfirmDialogOpen(false);
+    setSelectedExample(null);
+  }, []);
+
   return (
-    <Box sx={{ display: 'flex', height: '100%' }}>
+    <Box sx={{ display: 'flex', height: '100%', marginRight: `${rightDrawerWidth}px` }}>
       {/* Side drawer with instructions */}
       <Drawer
         variant="permanent"
@@ -367,10 +493,19 @@ const GraphBuilder: React.FC = () => {
           </Typography>
           <Box sx={{ mb: 2 }}>
             <Typography variant="subtitle2" gutterBottom>
-              Create a node
+              Create a process node
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               ⌘ + click anywhere on the canvas
+            </Typography>
+          </Box>
+
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" gutterBottom>
+              Create an input node
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              ⌘ + right-click anywhere on the canvas
             </Typography>
           </Box>
           
@@ -441,9 +576,11 @@ const GraphBuilder: React.FC = () => {
           onNodeClick={onNodeClick}
           onEdgeClick={onEdgeClick}
           onPaneClick={onPaneClick}
+          onPaneContextMenu={onPaneContextMenu}
           onInit={setReactFlowInstance}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
+          defaultEdgeOptions={defaultEdgeOptions}
           fitView
           attributionPosition="bottom-left"
           deleteKeyCode="Backspace"
@@ -463,6 +600,69 @@ const GraphBuilder: React.FC = () => {
           <AddIcon />
         </Fab>
       </Box>
+
+      {/* Right Sidebar */}
+      <Drawer
+        variant="permanent"
+        anchor="right"
+        sx={{
+          width: rightDrawerWidth,
+          flexShrink: 0,
+          position: 'fixed',
+          '& .MuiDrawer-paper': {
+            width: rightDrawerWidth,
+            boxSizing: 'border-box',
+            top: 0,
+            height: '100vh',
+            position: 'fixed',
+            right: 0,
+          },
+        }}
+      >
+        <Box sx={{ p: 2, overflow: 'auto' }}>
+          {/* Export Section */}
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="h6" gutterBottom>
+              Export Graph
+            </Typography>
+            
+            <Box sx={{ mb: 2 }}>
+              <Button
+                variant="outlined"
+                startIcon={<DownloadIcon />}
+                onClick={handleExportJSON}
+                fullWidth
+                sx={{ mb: 1 }}
+              >
+                Export JSON
+              </Button>
+              <Typography variant="caption" color="text.secondary">
+                Save graph structure as JSON file
+              </Typography>
+            </Box>
+
+            <Box sx={{ mb: 2 }}>
+              <Button
+                variant="contained"
+                startIcon={<CodeIcon />}
+                onClick={handleExportPython}
+                fullWidth
+              >
+                Generate Burr Code
+              </Button>
+              <Typography variant="caption" color="text.secondary">
+                Generate Python boilerplate code
+              </Typography>
+            </Box>
+          </Box>
+
+          {/* Example Gallery */}
+          <ExampleGallery
+            examples={examples}
+            onLoadExample={handleLoadExample}
+          />
+        </Box>
+      </Drawer>
 
       {/* Add Node Dialog */}
       <Dialog open={nodeDialog} onClose={() => setNodeDialog(false)} maxWidth="sm" fullWidth>
@@ -555,6 +755,15 @@ const GraphBuilder: React.FC = () => {
           </Grid>
         </Box>
       </Popover>
+
+      {/* Confirm Load Example Dialog */}
+      <ConfirmLoadExampleDialog
+        open={confirmDialogOpen}
+        onClose={handleCancelLoadExample}
+        onConfirm={handleConfirmLoadExample}
+        exampleTitle={selectedExample?.title || ''}
+        hasExistingContent={hasExistingContent}
+      />
     </Box>
   );
 };
