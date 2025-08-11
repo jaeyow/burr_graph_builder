@@ -80,17 +80,12 @@ const CustomEdge: React.FC<EdgeProps<CustomEdgeType>> = ({
 
   const handleLabelBlur = useCallback(() => {
     setIsEditing(false);
-    const newLabel = labelValue.trim() || 'condition';
-    
-    // For conditional edges, update all edges from the same source node
-    if (isConditional && data?.onGroupLabelChange && source) {
-      if (newLabel !== (data?.label || data?.condition)) {
-        data.onGroupLabelChange(source, newLabel);
-      }
-    } else if (data?.onLabelChange && newLabel !== (data?.label || data?.condition)) {
+    const newLabel = labelValue;
+    // Always update label and condition to the new value (even if empty)
+    if (data?.onLabelChange) {
       data.onLabelChange(id, newLabel);
     }
-  }, [data, id, labelValue, isConditional, source]);
+  }, [data, id, labelValue]);
 
   const handleLabelKeyDown = useCallback((event: React.KeyboardEvent) => {
     event.stopPropagation();
@@ -131,44 +126,44 @@ const CustomEdge: React.FC<EdgeProps<CustomEdgeType>> = ({
               pointerEvents: 'all',
             }}
           >
-            {isEditing ? (
-              <input
-                value={labelValue}
-                onChange={handleLabelChange}
-                onBlur={handleLabelBlur}
-                onKeyDown={handleLabelKeyDown}
-                onClick={(e) => e.stopPropagation()}
-                autoFocus
-                style={{
-                  border: '1px solid #ccc',
-                  borderRadius: '12px',
-                  padding: '4px 8px',
-                  fontSize: '10px',
-                  background: 'white',
-                  minWidth: '60px',
-                  textAlign: 'center',
-                }}
-              />
-            ) : (
-              <Chip
-                label={isConditional ? (data?.label || 'condition') : (data?.label || data?.condition || 'condition')}
-                size="small"
-                variant="outlined"
-                onClick={handleLabelClick}
-                sx={{
-                  backgroundColor: 'white',
-                  fontSize: '10px',
-                  height: '20px',
-                  cursor: 'pointer',
-                  '&:hover': {
-                    backgroundColor: '#f5f5f5',
-                  },
-                  '& .MuiChip-label': {
-                    px: 1,
-                  },
-                }}
-              />
-            )}
+        {isEditing ? (
+          <input
+            value={labelValue}
+            onChange={handleLabelChange}
+            onBlur={handleLabelBlur}
+            onKeyDown={handleLabelKeyDown}
+            onClick={(e) => e.stopPropagation()}
+            autoFocus
+            style={{
+              border: '1px solid #ccc',
+              borderRadius: '12px',
+              padding: '4px 8px',
+              fontSize: '10px',
+              background: 'white',
+              minWidth: '60px',
+              textAlign: 'center',
+            }}
+          />
+        ) : (
+          <Chip
+            label={data?.label ?? data?.condition ?? ''}
+            size="small"
+            variant="outlined"
+            onClick={handleLabelClick}
+            sx={{
+              backgroundColor: 'white',
+              fontSize: '10px',
+              height: '20px',
+              cursor: 'pointer',
+              '&:hover': {
+                backgroundColor: '#f5f5f5',
+              },
+              '& .MuiChip-label': {
+                px: 1,
+              },
+            }}
+          />
+        )}
           </Box>
         )}
       </EdgeLabelRenderer>
