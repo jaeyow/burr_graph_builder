@@ -136,21 +136,21 @@ export const streamingChatbotWorkflow: ExampleGraph = {
       id: 'decide_mode-generate_code',
       source: 'decide_mode',
       target: 'generate_code',
-      condition: 'mode=generate_code',
+      condition: 'mode="generate_code"',
       isConditional: true
     },
     {
       id: 'decide_mode-answer_question',
       source: 'decide_mode',
       target: 'answer_question',
-      condition: 'mode=answer_question',
+      condition: 'mode="answer_question"',
       isConditional: true
     },
     {
       id: 'decide_mode-generate_poem',
       source: 'decide_mode',
       target: 'generate_poem',
-      condition: 'mode=generate_poem',
+      condition: 'mode="generate_poem"',
       isConditional: true
     },
     {
