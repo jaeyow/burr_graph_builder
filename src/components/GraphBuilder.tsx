@@ -670,17 +670,17 @@ const GraphBuilder: React.FC = () => {
                       overflow: 'auto',
                     }}
                   >
-                    {tokens.map((line: any, i: number) => (
-                      <div key={i} {...getLineProps({ line, key: i })}>
-                        {line.map((token: any, key: number) => (
-                          <span key={key} {...getTokenProps({ token, key })} />
-                        ))}
-                      </div>
-                    ))}
-                    {/* Add 5 empty lines for scroll buffer */}
-                    {[...Array(5)].map((_, i) => (
-                      <div key={`empty-python-${i}`}>&nbsp;</div>
-                    ))}
+                    {tokens.map((line: any, i: number) => {
+                      const lineProps = getLineProps({ line });
+                      return (
+                        <div key={i} {...lineProps}>
+                          {line.map((token: any, key: number) => {
+                            const tokenProps = getTokenProps({ token });
+                            return <span key={key} {...tokenProps} />;
+                          })}
+                        </div>
+                      );
+                    })}
                   </pre>
                 )}
               </Highlight>
@@ -723,10 +723,6 @@ const GraphBuilder: React.FC = () => {
                           <span key={key} {...getTokenProps({ token, key })} />
                         ))}
                       </div>
-                    ))}
-                    {/* Add 5 empty lines for scroll buffer */}
-                    {[...Array(5)].map((_, i) => (
-                      <div key={`empty-json-${i}`}>&nbsp;</div>
                     ))}
                   </pre>
                 )}
