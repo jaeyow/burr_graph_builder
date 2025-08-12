@@ -4,6 +4,8 @@ A visual graph builder for creating [Burr](https://github.com/DAGWorks-Inc/burr)
 
 ![Burr Graph Builder Screenshot](./images/chat_example_graph.png)
 
+![Burr Graph Builder Python Tab](./images/python_tab.png)
+
 ## Generates the boilerplate Burr Graph in Python 
 
 ```python
@@ -68,11 +70,11 @@ def create_burr_graph():
         )
         .with_transitions(
             ("prompt", "check_safety", default),
-            ("check_safety", "decide_mode", when(safe_true=True)),
+            ("check_safety", "decide_mode", when(safe=True)),
             ("check_safety", "unsafe_response", default),
-            ("decide_mode", "generate_code", when(mode_generate_code=True)),
-            ("decide_mode", "answer_question", when(mode_answer_question=True)),
-            ("decide_mode", "generate_poem", when(mode_generate_poem=True)),
+            ("decide_mode", "generate_code", when(mode="generate_code")),
+            ("decide_mode", "answer_question", when(mode="answer_question")),
+            ("decide_mode", "generate_poem", when(mode="generate_poem")),
             ("decide_mode", "prompt_for_more", default),
             ("generate_code", "prompt", default),
             ("answer_question", "prompt", default),
@@ -94,14 +96,14 @@ if __name__ == "__main__":
 ## Features
 
 - **Visual Workflow Design**: Create Burr workflows using an intuitive ReactFlow-based interface
-- **Node Types**: Support for input nodes (parameters) and process nodes (actions)
+- **Node Types**: Support for input nodes (parameters) and action nodes
 - **Smart Code Generation**: Automatically generates Python code with proper action signatures including input parameters
 - **Example Gallery**: Pre-built workflow examples to get you started quickly
 - **Real-time Editing**: Edit node labels and descriptions directly in the graph
 - **Export Options**: Export workflows as Python code or JSON format
 - **Input Node Intelligence**: Input nodes are treated as parameters to target actions, not separate actions
 - **Visual Flow Indicators**: Edges display arrow heads pointing to target nodes for clear flow direction
-- **Keyboard Shortcuts**: Quick node creation with Cmd+Click (process nodes) and Cmd+Right-Click (input nodes)
+- **Keyboard Shortcuts**: Quick node creation with Cmd+Click (action nodes) and Cmd+Right-Click (input nodes)
 
 ## Getting Started
 
@@ -141,7 +143,7 @@ npm start
 ### Creating a New Workflow
 
 1. **Start Building**: Begin by adding nodes to the canvas using keyboard shortcuts
-2. **Add Process Nodes**: Cmd+Click anywhere on the canvas to create process nodes (Burr actions)
+2. **Add Action Nodes**: Cmd+Click anywhere on the canvas to create action nodes (Burr actions)
 3. **Add Input Nodes**: Cmd+Right-Click anywhere on the canvas to create input nodes (parameters)
 4. **Connect Nodes**: Draw edges between nodes to define the workflow flow (edges show arrow heads pointing to target nodes)
 5. **Add Conditions**: For conditional edges, add condition labels for decision logic
@@ -154,7 +156,7 @@ npm start
 - **Naming Convention**: Use format like "input: prompt" or "input: model"
 - **Code Generation**: Become parameters in the target action function signature
 
-#### Process Nodes  
+#### Action Nodes (Burr Actions)
 - **Appearance**: Colored solid rectangles with pastel backgrounds
 - **Purpose**: Represent Burr actions that perform business logic
 - **Code Generation**: Become `@action` decorated functions
@@ -171,7 +173,7 @@ The application includes a streaming chatbot workflow example that demonstrates:
 
 When you export your workflow, the application generates:
 
-1. **Action Functions**: Each process node becomes a Burr action with proper parameters:
+1. **Action Functions**: Each action node becomes a Burr action with proper parameters:
 ```python
 @action(reads=[], writes=[])
 def prompt(state: State, prompt: str) -> Tuple[dict, State]:
@@ -201,10 +203,10 @@ def create_burr_graph():
 
 ### Input Nodes
 - Use descriptive names like "input: user_message" or "input: model_name"
-- Connect input nodes directly to the process nodes that need those parameters
+- Connect input nodes directly to the action nodes that need those parameters
 - Input nodes don't need outgoing connections to multiple nodes
 
-### Process Nodes  
+### Action Nodes (Burr Actions)
 - Use clear, action-oriented names like "validate_input", "generate_response"
 - Add descriptions to document what each action should do
 - Consider the data flow between actions

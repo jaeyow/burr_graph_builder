@@ -18,14 +18,14 @@ from burr.core.graph import GraphBuilder`;
   }
 
   private static generateActions(nodes: BurrGraphJSON['nodes'], edges: BurrGraphJSON['edges']): string {
-    // Only generate actions for process nodes, not input nodes
+    // Only generate actions for action nodes, not input nodes
     const processNodes = nodes.filter(node => node.nodeType !== 'input');
     
     const actionFunctions = processNodes.map(node => {
       const functionName = this.sanitizeNodeName(node.label);
       const description = node.description ? `\n    """${node.description}"""` : '';
       
-      // Find input nodes that connect to this process node
+      // Find input nodes that connect to this action node
       const inputParams = this.getInputParameters(node.id, nodes, edges);
       const paramString = inputParams.length > 0 
         ? `state: State, ${inputParams.join(', ')}`
@@ -73,7 +73,7 @@ def ${functionName}(${paramString}) -> Tuple[dict, State]:${stubDocstring}
   }
 
   private static generateGraphFunction(graphData: BurrGraphJSON): string {
-    // Only include process nodes in actions, not input nodes
+    // Only include action nodes in actions, not input nodes
     const processNodes = graphData.nodes.filter(node => node.nodeType !== 'input');
     const actionNames = processNodes.map(node => this.sanitizeNodeName(node.label));
     const transitions = this.generateTransitions(graphData);
@@ -138,8 +138,7 @@ ${transitions}
           const targetNode = graphData.nodes.find(n => n.id === edge.target);
           if (targetNode && targetNode.nodeType !== 'input' && edge.condition) {
             const targetName = this.sanitizeNodeName(targetNode.label);
-            const conditionName = this.sanitizeConditionName(edge.condition);
-            transitions.push(`            ("${sourceName}", "${targetName}", when(${conditionName}=True)),`);
+            transitions.push(`            ("${sourceName}", "${targetName}", when(${edge.condition})),`);
           }
         });
 
@@ -155,41 +154,7 @@ ${transitions}
       }
     });
 
-    // Check for nodes that need to return to a common node (like the prompt pattern in your example)
-    const returnTransitions = this.generateReturnTransitions(graphData);
-    if (returnTransitions) {
-      transitions.push(returnTransitions);
-    }
-
     return transitions.join('\n');
-  }
-
-  private static generateReturnTransitions(graphData: BurrGraphJSON): string | null {
-    // Find process nodes that have no outgoing edges (end nodes), excluding input nodes
-    const processNodes = graphData.nodes.filter(node => node.nodeType !== 'input');
-    const endNodes = processNodes.filter(node => 
-      !graphData.edges.some(edge => edge.source === node.id)
-    );
-
-    // Find start node (or most connected input node), excluding input nodes
-    const startNode = processNodes.find(node => node.nodeType === 'start') ||
-                     processNodes.find(node => 
-                       !graphData.edges.some(edge => edge.target === node.id)
-                     );
-
-    if (endNodes.length > 1 && startNode) {
-      const endNodeNames = endNodes.map(node => `"${this.sanitizeNodeName(node.label)}"`);
-      const startNodeName = this.sanitizeNodeName(startNode.label);
-      
-      return `            (
-                [
-${endNodeNames.map(name => `                    ${name},`).join('\n')}
-                ],
-                "${startNodeName}",
-            ),`;
-    }
-
-    return null;
   }
 
   private static generateMain(): string {

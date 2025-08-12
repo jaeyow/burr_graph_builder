@@ -1,3 +1,4 @@
+// Add Prism namespace for types
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   ReactFlow,
@@ -33,15 +34,22 @@ import {
   MenuItem,
   Popover,
   Grid,
+  Tabs,
+  Tab,
+  IconButton,
 } from '@mui/material';
+// MonacoEditor import removed; now using prism-react-renderer for code highlighting
+import { Highlight } from 'prism-react-renderer';
+import theme from '../themes/dark';
 import {
   Add as AddIcon,
   AccountTree as TreeIcon,
   Settings as SettingsIcon,
   Warning as WarningIcon,
   Help as HelpIcon,
-  Download as DownloadIcon,
-  Code as CodeIcon,
+  ChevronLeft as ChevronLeftIcon,
+  ChevronRight as ChevronRightIcon,
+  ContentCopy as ContentCopyIcon,
 } from '@mui/icons-material';
 
 import '@xyflow/react/dist/style.css';
@@ -86,10 +94,10 @@ const initialEdges: Edge[] = [];
 
 // Available node templates
 const nodeTemplates = [
-  { type: 'start', label: 'Start Node', icon: <TreeIcon />, color: '#4caf50' },
-  { type: 'process', label: 'Process Node', icon: <SettingsIcon />, color: '#429dbce6' },
-  { type: 'decision', label: 'Decision Node', icon: <HelpIcon />, color: '#ff9800' },
-  { type: 'end', label: 'End Node', icon: <WarningIcon />, color: '#f44336' },
+  // { type: 'start', label: 'Start Node', icon: <TreeIcon />, color: '#4caf50' },
+  { type: 'action', label: 'Action Node', icon: <SettingsIcon />, color: '#429dbce6' },
+  { type: 'input', label: 'Input Node', icon: <HelpIcon />, color: '#ff9800' },
+  // { type: 'end', label: 'End Node', icon: <WarningIcon />, color: '#f44336' },
 ];
 
 interface NodeDialogData {
@@ -100,6 +108,8 @@ interface NodeDialogData {
 }
 
 const GraphBuilder: React.FC = () => {
+  const [leftOpen, setLeftOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(true);
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
@@ -113,9 +123,11 @@ const GraphBuilder: React.FC = () => {
   const [nodeDialogData, setNodeDialogData] = useState<NodeDialogData>({
     label: '',
     description: '',
-    nodeType: 'process',
+    nodeType: 'action',
     icon: 'settings',
   });
+  const [tabIndex, setTabIndex] = useState(0);
+  const [copied, setCopied] = useState<'python' | 'json' | null>(null);
 
   const edgeColors = ['#429dbce6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#6b7280'];
 
@@ -142,32 +154,27 @@ const GraphBuilder: React.FC = () => {
     setEdges((eds) =>
       eds.map((edge) =>
         edge.id === edgeId
-          ? { ...edge, data: { ...edge.data, label: newLabel } }
+          ? { ...edge, data: { ...edge.data, label: newLabel, condition: newLabel } }
           : edge
       )
     );
   }, [setEdges]);
 
   // Handle conditional group label change - updates all edges from the same source
-  const handleConditionalGroupLabelChange = useCallback((sourceNodeId: string, newLabel: string) => {
-    setEdges((eds) =>
-      eds.map((edge) =>
-        edge.source === sourceNodeId && edge.data?.isConditional
-          ? { ...edge, data: { ...edge.data, label: newLabel } }
-          : edge
-      )
-    );
-  }, [setEdges]);
+  // No longer needed: group label editing
+  const handleConditionalGroupLabelChange = useCallback((_sourceNodeId: string, _newLabel: string) => {
+    // No-op: group label editing is disabled
+  }, []);
 
   // Handle canvas click with Cmd/Ctrl key to create nodes
   const onPaneClick = useCallback((event: React.MouseEvent) => {
     if (event.metaKey || event.ctrlKey) {
       // Determine node type based on mouse button
       const isRightClick = event.button === 2 || event.type === 'contextmenu';
-      const nodeType = isRightClick ? 'input' : 'process';
+      const nodeType = isRightClick ? 'input' : 'action';
       const nodeLabel = isRightClick ? `Input ${nodes.length + 1}` : `Node ${nodes.length + 1}`;
       
-      // Cmd/Ctrl + click to create a process node
+      // Cmd/Ctrl + click to create a action node
       // Cmd/Ctrl + right-click to create an input node
       let position;
       
@@ -279,16 +286,12 @@ const GraphBuilder: React.FC = () => {
     (params: Connection) => {
       // Check if source node already has outgoing edges
       const sourceEdges = edges.filter(edge => edge.source === params.source);
-      const isConditional = sourceEdges.length > 0;
-      
-      // Get the existing group label if this is becoming conditional
-      let groupLabel = 'condition';
-      if (isConditional) {
-        const existingConditionalEdge = sourceEdges.find(edge => edge.data?.isConditional);
-        if (existingConditionalEdge?.data?.label && typeof existingConditionalEdge.data.label === 'string') {
-          groupLabel = existingConditionalEdge.data.label;
-        }
-      }
+      const willBeConditional = sourceEdges.length > 0;
+
+      // Find the target node's label
+      const targetNode = nodes.find(node => node.id === params.target);
+      const targetLabel = targetNode?.data?.label || params.target;
+      const conditionString = `condition="${targetLabel}"`;
 
       const newEdge = {
         ...params,
@@ -300,45 +303,17 @@ const GraphBuilder: React.FC = () => {
           color: '#429dbce6',
         },
         data: { 
-          condition: isConditional ? groupLabel : undefined,
-          isConditional,
-          label: isConditional ? groupLabel : undefined,
+          condition: willBeConditional ? conditionString : undefined,
+          isConditional: willBeConditional,
+          label: willBeConditional ? conditionString : undefined,
           onLabelChange: handleEdgeLabelChange,
           onGroupLabelChange: handleConditionalGroupLabelChange,
         },
       };
       
-      // If this makes the source conditional, update existing edges from same source
-      if (isConditional) {
-        setEdges((eds) => {
-          const updatedEdges = eds.map(edge => {
-            if (edge.source === params.source && !edge.data?.isConditional) {
-              return {
-                ...edge,
-                markerEnd: {
-                  type: MarkerType.ArrowClosed,
-                  width: 15,
-                  height: 15,
-                  color: '#429dbce6',
-                },
-                data: {
-                  ...edge.data,
-                  isConditional: true,
-                  label: groupLabel,
-                  onLabelChange: handleEdgeLabelChange,
-                  onGroupLabelChange: handleConditionalGroupLabelChange,
-                }
-              };
-            }
-            return edge;
-          });
-          return addEdge(newEdge, updatedEdges);
-        });
-      } else {
-        setEdges((eds) => addEdge(newEdge, eds));
-      }
+      setEdges((eds) => addEdge(newEdge, eds));
     },
-    [setEdges, edges, handleEdgeLabelChange, handleConditionalGroupLabelChange]
+    [setEdges, edges, nodes, handleEdgeLabelChange, handleConditionalGroupLabelChange]
   );
 
   // Handle node selection
@@ -351,7 +326,6 @@ const GraphBuilder: React.FC = () => {
   const onEdgeClick = useCallback((event: React.MouseEvent, edge: Edge) => {
     setSelectedEdge(edge.id);
     setSelectedNode(null);
-    // Open color picker for edge coloring
     setColorPickerAnchor(event.currentTarget as HTMLElement);
     setColorPickerOpen(true);
   }, []);
@@ -370,6 +344,56 @@ const GraphBuilder: React.FC = () => {
     setColorPickerOpen(false);
     setColorPickerAnchor(null);
   }, [selectedEdge, setEdges]);
+
+  // Toggle isConditional for an edge in a group
+  const handleToggleConditional = useCallback(() => {
+    if (!selectedEdge) return;
+    setEdges((eds) => {
+      const targetEdge = eds.find(e => e.id === selectedEdge);
+      if (!targetEdge) return eds;
+      const source = targetEdge.source;
+      const target = targetEdge.target;
+      const groupEdges = eds.filter(e => e.source === source);
+      const toggledIsConditional = !targetEdge.data?.isConditional;
+
+      // Find the target node's label
+      const targetNode = nodes.find(node => node.id === target);
+      const targetLabel = targetNode?.data?.label || target;
+      const conditionString = `condition="${targetLabel}"`;
+
+      return eds.map(edge => {
+        if (edge.id === selectedEdge) {
+          return {
+            ...edge,
+            data: {
+              ...edge.data,
+              isConditional: toggledIsConditional,
+              // If toggling to conditional, set condition/label to condition="node name"
+              condition: toggledIsConditional ? conditionString : undefined,
+              label: toggledIsConditional ? conditionString : undefined,
+            }
+          };
+        }
+        // If toggling OFF, recalculate group conditional status
+        if (edge.source === source && edge.id !== selectedEdge) {
+          // If only one edge left as conditional, set it to false
+          if (!toggledIsConditional) {
+            const stillConditional = groupEdges.filter(e => e.id !== selectedEdge && e.data?.isConditional).length > 1;
+            return {
+              ...edge,
+              data: {
+                ...edge.data,
+                isConditional: stillConditional,
+              }
+            };
+          }
+        }
+        return edge;
+      });
+    });
+    setColorPickerOpen(false);
+    setColorPickerAnchor(null);
+  }, [selectedEdge, setEdges, nodes]);
 
   const handleAddNode = useCallback(() => {
     setNodeDialog(true);
@@ -396,22 +420,15 @@ const GraphBuilder: React.FC = () => {
     setNodeDialogData({
       label: '',
       description: '',
-      nodeType: 'process',
+      nodeType: 'action',
       icon: 'settings',
     });
   }, [nodeDialogData, setNodes, nodes.length, handleDeleteNode, handleLabelChange]);
 
-  // Export functions
-  const handleExportJSON = useCallback(() => {
-    const graphData = GraphExporter.exportToJSON(nodes, edges);
-    GraphExporter.downloadJSON(graphData);
-  }, [nodes, edges]);
-
-  const handleExportPython = useCallback(() => {
-    const graphData = GraphExporter.exportToJSON(nodes, edges);
-    const pythonCode = BurrGraphCodeGenerator.generatePythonCode(graphData);
-    BurrGraphCodeGenerator.downloadPythonCode(pythonCode);
-  }, [nodes, edges]);
+  // Generate code for tabs
+  const graphData = GraphExporter.exportToJSON(nodes, edges);
+  const pythonCode = BurrGraphCodeGenerator.generatePythonCode(graphData);
+  const jsonCode = JSON.stringify(graphData, null, 2);
 
   // Example loading functions
   const hasExistingContent = nodes.length > 0 || edges.length > 0;
@@ -473,33 +490,43 @@ const GraphBuilder: React.FC = () => {
   }, []);
 
   return (
-    <Box sx={{ display: 'flex', height: '100%', marginRight: `${rightDrawerWidth}px` }}>
+    <Box sx={{ display: 'flex', height: 'calc(100vh - 32px)', mb: 4 }}>
       {/* Side drawer with instructions */}
       <Drawer
         variant="permanent"
         sx={{
-          width: drawerWidth,
+          width: leftOpen ? drawerWidth : 48,
           flexShrink: 0,
+          height: 'calc(100vh - 32px)',
+          transition: 'width 0.2s',
           '& .MuiDrawer-paper': {
-            width: drawerWidth,
+            width: leftOpen ? drawerWidth : 48,
             boxSizing: 'border-box',
             position: 'relative',
+            height: 'calc(100vh - 32px)',
+            transition: 'width 0.2s',
+            overflowX: 'hidden',
           },
         }}
       >
-        <Box sx={{ p: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: leftOpen ? 'flex-end' : 'center', p: 1 }}>
+          <IconButton onClick={() => setLeftOpen(!leftOpen)} size="small">
+            {leftOpen ? <ChevronLeftIcon /> : <ChevronRightIcon />}
+          </IconButton>
+        </Box>
+        {leftOpen && (
+          <Box sx={{ p: 2, height: '100%', overflow: 'auto' }}>
           <Typography variant="h6" gutterBottom>
             Key Commands
           </Typography>
           <Box sx={{ mb: 2 }}>
             <Typography variant="subtitle2" gutterBottom>
-              Create a process node
+              Create an action node
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               ⌘ + click anywhere on the canvas
             </Typography>
           </Box>
-
           <Box sx={{ mb: 2 }}>
             <Typography variant="subtitle2" gutterBottom>
               Create an input node
@@ -508,7 +535,6 @@ const GraphBuilder: React.FC = () => {
               ⌘ + right-click anywhere on the canvas
             </Typography>
           </Box>
-          
           <Box sx={{ mb: 2 }}>
             <Typography variant="subtitle2" gutterBottom>
               Create an edge
@@ -517,7 +543,6 @@ const GraphBuilder: React.FC = () => {
               click + drag from the bottom of one node to the top of another
             </Typography>
           </Box>
-
           <Box sx={{ mb: 2 }}>
             <Typography variant="subtitle2" gutterBottom>
               Create a conditional edge
@@ -526,16 +551,14 @@ const GraphBuilder: React.FC = () => {
               connect one node to multiple nodes (creates animated dashed lines with shared names)
             </Typography>
           </Box>
-
           <Box sx={{ mb: 2 }}>
             <Typography variant="subtitle2" gutterBottom>
               Edit edge labels
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              click on edge label to edit. Conditional edges from same node share names.
+              click on edge label to edit. Each edge has its own independent label.
             </Typography>
           </Box>
-
           <Box sx={{ mb: 2 }}>
             <Typography variant="subtitle2" gutterBottom>
               Create a cycle
@@ -544,7 +567,6 @@ const GraphBuilder: React.FC = () => {
               click + drag from the bottom to the top of a node
             </Typography>
           </Box>
-
           <Box sx={{ mb: 2 }}>
             <Typography variant="subtitle2" gutterBottom>
               Delete an edge/node
@@ -553,7 +575,6 @@ const GraphBuilder: React.FC = () => {
               click the edge/node and hit the backspace key
             </Typography>
           </Box>
-
           <Box sx={{ mb: 2 }}>
             <Typography variant="subtitle2" gutterBottom>
               Color an edge
@@ -562,107 +583,171 @@ const GraphBuilder: React.FC = () => {
               click the edge and select an option from the color picker
             </Typography>
           </Box>
-        </Box>
+          </Box>
+        )}
       </Drawer>
 
-      {/* Main ReactFlow area */}
-      <Box sx={{ flex: 1, position: 'relative' }}>
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onNodeClick={onNodeClick}
-          onEdgeClick={onEdgeClick}
-          onPaneClick={onPaneClick}
-          onPaneContextMenu={onPaneContextMenu}
-          onInit={setReactFlowInstance}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          defaultEdgeOptions={defaultEdgeOptions}
-          fitView
-          attributionPosition="bottom-left"
-          deleteKeyCode="Backspace"
-        >
-          <Controls />
-          <MiniMap />
-          <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
-        </ReactFlow>
-
-        {/* Add Node FAB - Keep for manual addition */}
-        <Fab
-          color="primary"
-          aria-label="add node"
-          sx={{ position: 'absolute', bottom: 16, right: 16 }}
-          onClick={handleAddNode}
-        >
-          <AddIcon />
-        </Fab>
+      {/* Main tabbed area */}
+      <Box sx={{
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        flex: 1,
+        paddingBottom: '60px', // Add bottom padding to prevent clipping
+        transition: 'margin 0.2s',
+      }}>
+        <Box sx={{ pb: 1 }}>
+          <Tabs value={tabIndex} onChange={(_, v) => setTabIndex(v)} variant="fullWidth">
+            <Tab label="Canvas" value={0} />
+            <Tab label="Python" value={1} />
+            <Tab label="JSON" value={2} />
+          </Tabs>
+        </Box>
+        <Box sx={{ flex: 1, minHeight: 0, position: 'relative' }}>
+          {tabIndex === 0 && (
+            <Box sx={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onNodeClick={onNodeClick}
+                onEdgeClick={onEdgeClick}
+                onPaneClick={onPaneClick}
+                onPaneContextMenu={onPaneContextMenu}
+                onInit={setReactFlowInstance}
+                nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
+                defaultEdgeOptions={defaultEdgeOptions}
+                defaultViewport={{ x: 0, y: 0, zoom: 1.0 }}
+                attributionPosition="bottom-left"
+                deleteKeyCode="Backspace"
+              >
+                <Controls />
+                <MiniMap />
+                <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
+              </ReactFlow>
+              <Fab
+                color="primary"
+                aria-label="add node"
+                sx={{ position: 'absolute', bottom: 16, right: 16 }}
+                onClick={handleAddNode}
+              >
+                <AddIcon />
+              </Fab>
+            </Box>
+          )}
+          {tabIndex === 1 && (
+            <Box sx={{ width: '100%', height: '100%', overflow: 'auto', background: '#282a36', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+    <Box sx={{ position: 'absolute', top: 8, right: 20, zIndex: 2, background: 'rgba(255,255,255,0.85)', borderRadius: 1 }}>
+      <IconButton
+        color={copied === 'python' ? 'success' : 'primary'}
+        size="small"
+        onClick={async () => {
+          await navigator.clipboard.writeText(pythonCode);
+          setCopied('python');
+          setTimeout(() => setCopied(null), 1200);
+        }}
+        aria-label="Copy Python code"
+      >
+        <ContentCopyIcon />
+      </IconButton>
+    </Box>
+              <Highlight code={pythonCode} language="python" theme={theme}>
+                {({ className, style, tokens, getLineProps, getTokenProps }: any) => (
+                  <pre
+                    className={className}
+                    style={{
+                      ...style,
+                      margin: 0,
+                      padding: 16,
+                      fontSize: 14,
+                      borderRadius: 4,
+                      height: '100%',
+                      boxSizing: 'border-box',
+                      overflow: 'auto',
+                    }}
+                  >
+                    {tokens.map((line: any, i: number) => {
+                      const lineProps = getLineProps({ line });
+                      return (
+                        <div key={i} {...lineProps}>
+                          {line.map((token: any, key: number) => {
+                            const tokenProps = getTokenProps({ token });
+                            return <span key={key} {...tokenProps} />;
+                          })}
+                        </div>
+                      );
+                    })}
+                  </pre>
+                )}
+              </Highlight>
+            </Box>
+          )}
+          {tabIndex === 2 && (
+            <Box sx={{ width: '100%', height: '100%', overflow: 'auto', background: '#282a36', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+    <Box sx={{ position: 'absolute', top: 8, right: 20, zIndex: 2, background: 'rgba(255,255,255,0.85)', borderRadius: 1 }}>
+      <IconButton
+        color={copied === 'json' ? 'success' : 'primary'}
+        size="small"
+        onClick={async () => {
+          await navigator.clipboard.writeText(jsonCode);
+          setCopied('json');
+          setTimeout(() => setCopied(null), 1200);
+        }}
+        aria-label="Copy JSON code"
+      >
+        <ContentCopyIcon />
+      </IconButton>
+    </Box>
+              <Highlight code={jsonCode} language="json" theme={theme}>
+                {({ className, style, tokens, getLineProps, getTokenProps }: any) => (
+                  <pre
+                    className={className}
+                    style={{
+                      ...style,
+                      margin: 0,
+                      padding: 16,
+                      fontSize: 14,
+                      borderRadius: 4,
+                      height: '100%',
+                      boxSizing: 'border-box',
+                      overflow: 'auto',
+                    }}
+                  >
+                    {tokens.map((line: any, i: number) => (
+                      <div key={i} {...getLineProps({ line, key: i })}>
+                        {line.map((token: any, key: number) => (
+                          <span key={key} {...getTokenProps({ token, key })} />
+                        ))}
+                      </div>
+                    ))}
+                  </pre>
+                )}
+              </Highlight>
+            </Box>
+          )}
+        </Box>
       </Box>
 
-      {/* Right Sidebar */}
-      <Drawer
-        variant="permanent"
-        anchor="right"
-        sx={{
-          width: rightDrawerWidth,
-          flexShrink: 0,
-          position: 'fixed',
-          '& .MuiDrawer-paper': {
-            width: rightDrawerWidth,
-            boxSizing: 'border-box',
-            top: 0,
-            height: '100vh',
-            position: 'fixed',
-            right: 0,
-          },
-        }}
-      >
-        <Box sx={{ p: 2, overflow: 'auto' }}>
-          {/* Export Section */}
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="h6" gutterBottom>
-              Export Graph
-            </Typography>
-            
-            <Box sx={{ mb: 2 }}>
-              <Button
-                variant="outlined"
-                startIcon={<DownloadIcon />}
-                onClick={handleExportJSON}
-                fullWidth
-                sx={{ mb: 1 }}
-              >
-                Export JSON
-              </Button>
-              <Typography variant="caption" color="text.secondary">
-                Save graph structure as JSON file
-              </Typography>
-            </Box>
-
-            <Box sx={{ mb: 2 }}>
-              <Button
-                variant="contained"
-                startIcon={<CodeIcon />}
-                onClick={handleExportPython}
-                fullWidth
-              >
-                Generate Burr Code
-              </Button>
-              <Typography variant="caption" color="text.secondary">
-                Generate Python boilerplate code
-              </Typography>
-            </Box>
-          </Box>
-
-          {/* Example Gallery */}
-          <ExampleGallery
-            examples={examples}
-            onLoadExample={handleLoadExample}
-          />
+      {/* Right panel: ExampleGallery only */}
+      <Box sx={{ width: rightOpen ? rightDrawerWidth : 48, height: '100%', background: '#fff', boxShadow: 2, zIndex: 10, transition: 'width 0.2s', overflowX: 'hidden' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: rightOpen ? 'flex-start' : 'center', p: 1 }}>
+          <IconButton onClick={() => setRightOpen(!rightOpen)} size="small">
+            {rightOpen ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+          </IconButton>
         </Box>
-      </Drawer>
+        {rightOpen && (
+          <Box sx={{ p: 2, height: '100%', overflow: 'auto' }}>
+            <ExampleGallery
+              examples={examples}
+              onLoadExample={handleLoadExample}
+            />
+          </Box>
+        )}
+      </Box>
 
       {/* Add Node Dialog */}
       <Dialog open={nodeDialog} onClose={() => setNodeDialog(false)} maxWidth="sm" fullWidth>
@@ -753,6 +838,28 @@ const GraphBuilder: React.FC = () => {
               </Grid>
             ))}
           </Grid>
+          {/* Conditional toggle for grouped edges */}
+          {(() => {
+            if (!selectedEdge) return null;
+            const selected = edges.find(e => e.id === selectedEdge);
+            if (!selected) return null;
+            const groupEdges = edges.filter(e => e.source === selected.source);
+            if (groupEdges.length > 1) {
+              return (
+                <Box sx={{ mt: 2 }}>
+                  <Button
+                    variant={selected.data?.isConditional ? 'contained' : 'outlined'}
+                    color={selected.data?.isConditional ? 'primary' : 'inherit'}
+                    onClick={handleToggleConditional}
+                    fullWidth
+                  >
+                    {selected.data?.isConditional ? 'Make Default' : 'Make Conditional'}
+                  </Button>
+                </Box>
+              );
+            }
+            return null;
+          })()}
         </Box>
       </Popover>
 
