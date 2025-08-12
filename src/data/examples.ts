@@ -6,7 +6,7 @@ export interface ExampleGraph {
   nodes: Array<{
     id: string;
     label: string;
-    nodeType: 'input' | 'process' ;
+    nodeType: 'input' | 'action' ;
     position: { x: number; y: number };
     description?: string;
   }>;
@@ -42,49 +42,49 @@ export const streamingChatbotWorkflow: ExampleGraph = {
     {
       id: 'prompt',
       label: 'prompt',
-      nodeType: 'process',
+      nodeType: 'action',
       position: { x: 500, y: 200 }
     },
     {
       id: 'check_safety',
       label: 'check_safety',
-      nodeType: 'process',
+      nodeType: 'action',
       position: { x: 500, y: 350 }
     },
     {
       id: 'decide_mode',
       label: 'decide_mode',
-      nodeType: 'process',
+      nodeType: 'action',
       position: { x: 400, y: 500 }
     },
     {
       id: 'unsafe_response',
       label: 'unsafe_response',
-      nodeType: 'process',
+      nodeType: 'action',
       position: { x: 750, y: 500 }
     },
     {
       id: 'generate_code',
       label: 'generate_code',
-      nodeType: 'process',
+      nodeType: 'action',
       position: { x: 150, y: 650 }
     },
     {
       id: 'answer_question',
       label: 'answer_question',
-      nodeType: 'process',
+      nodeType: 'action',
       position: { x: 350, y: 700 }
     },
     {
       id: 'generate_poem',
       label: 'generate_poem',
-      nodeType: 'process',
+      nodeType: 'action',
       position: { x: 550, y: 750 }
     },
     {
       id: 'prompt_for_more',
       label: 'prompt_for_more',
-      nodeType: 'process',
+      nodeType: 'action',
       position: { x: 700, y: 700 }
     }
   ],

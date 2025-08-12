@@ -18,14 +18,14 @@ from burr.core.graph import GraphBuilder`;
   }
 
   private static generateActions(nodes: BurrGraphJSON['nodes'], edges: BurrGraphJSON['edges']): string {
-    // Only generate actions for process nodes, not input nodes
+    // Only generate actions for action nodes, not input nodes
     const processNodes = nodes.filter(node => node.nodeType !== 'input');
     
     const actionFunctions = processNodes.map(node => {
       const functionName = this.sanitizeNodeName(node.label);
       const description = node.description ? `\n    """${node.description}"""` : '';
       
-      // Find input nodes that connect to this process node
+      // Find input nodes that connect to this action node
       const inputParams = this.getInputParameters(node.id, nodes, edges);
       const paramString = inputParams.length > 0 
         ? `state: State, ${inputParams.join(', ')}`
@@ -73,7 +73,7 @@ def ${functionName}(${paramString}) -> Tuple[dict, State]:${stubDocstring}
   }
 
   private static generateGraphFunction(graphData: BurrGraphJSON): string {
-    // Only include process nodes in actions, not input nodes
+    // Only include action nodes in actions, not input nodes
     const processNodes = graphData.nodes.filter(node => node.nodeType !== 'input');
     const actionNames = processNodes.map(node => this.sanitizeNodeName(node.label));
     const transitions = this.generateTransitions(graphData);

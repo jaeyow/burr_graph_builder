@@ -94,10 +94,10 @@ const initialEdges: Edge[] = [];
 
 // Available node templates
 const nodeTemplates = [
-  { type: 'start', label: 'Start Node', icon: <TreeIcon />, color: '#4caf50' },
-  { type: 'process', label: 'Process Node', icon: <SettingsIcon />, color: '#429dbce6' },
-  { type: 'decision', label: 'Decision Node', icon: <HelpIcon />, color: '#ff9800' },
-  { type: 'end', label: 'End Node', icon: <WarningIcon />, color: '#f44336' },
+  // { type: 'start', label: 'Start Node', icon: <TreeIcon />, color: '#4caf50' },
+  { type: 'action', label: 'Action Node', icon: <SettingsIcon />, color: '#429dbce6' },
+  { type: 'input', label: 'Input Node', icon: <HelpIcon />, color: '#ff9800' },
+  // { type: 'end', label: 'End Node', icon: <WarningIcon />, color: '#f44336' },
 ];
 
 interface NodeDialogData {
@@ -123,7 +123,7 @@ const GraphBuilder: React.FC = () => {
   const [nodeDialogData, setNodeDialogData] = useState<NodeDialogData>({
     label: '',
     description: '',
-    nodeType: 'process',
+    nodeType: 'action',
     icon: 'settings',
   });
   const [tabIndex, setTabIndex] = useState(0);
@@ -171,10 +171,10 @@ const GraphBuilder: React.FC = () => {
     if (event.metaKey || event.ctrlKey) {
       // Determine node type based on mouse button
       const isRightClick = event.button === 2 || event.type === 'contextmenu';
-      const nodeType = isRightClick ? 'input' : 'process';
+      const nodeType = isRightClick ? 'input' : 'action';
       const nodeLabel = isRightClick ? `Input ${nodes.length + 1}` : `Node ${nodes.length + 1}`;
       
-      // Cmd/Ctrl + click to create a process node
+      // Cmd/Ctrl + click to create a action node
       // Cmd/Ctrl + right-click to create an input node
       let position;
       
@@ -420,7 +420,7 @@ const GraphBuilder: React.FC = () => {
     setNodeDialogData({
       label: '',
       description: '',
-      nodeType: 'process',
+      nodeType: 'action',
       icon: 'settings',
     });
   }, [nodeDialogData, setNodes, nodes.length, handleDeleteNode, handleLabelChange]);
@@ -521,7 +521,7 @@ const GraphBuilder: React.FC = () => {
           </Typography>
           <Box sx={{ mb: 2 }}>
             <Typography variant="subtitle2" gutterBottom>
-              Create a process node
+              Create an action node
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               ⌘ + click anywhere on the canvas
